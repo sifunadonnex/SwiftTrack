@@ -3,4 +3,8 @@
 // but for now, it just re-exports the AuthProvider from use-auth-client.
 // This simplifies imports in `layout.tsx`.
 
-export { ClientAuthProvider as AuthProvider } from '@/hooks/use-auth-client';
+// Import the original AuthProvider
+import { AuthProvider as HookAuthProvider } from '@/hooks/use-auth-client';
+
+// Re-export it as AuthProvider for layout.tsx
+export { HookAuthProvider as AuthProvider };

@@ -127,5 +127,6 @@ export const ProtectedRoute = ({ children, requiredRole, fallbackPath = '/login'
   return <>{children}</>;
 };
 
-// Re-export AuthProvider to be used in layout.tsx
-export { AuthProvider as ClientAuthProvider } from '@/hooks/use-auth-client';
+// Removed problematic self-referential export:
+// export { AuthProvider as ClientAuthProvider } from '@/hooks/use-auth-client';
+// AuthProvider is already exported above. src/providers/auth-provider.tsx will handle aliasing if needed.
