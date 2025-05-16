@@ -1,107 +1,61 @@
 
 "use client";
 
-import { useState, useEffect, useContext, createContext, type ReactNode } from 'react';
-import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { createContext, type ReactNode, useContext, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { auth } from '@/config/firebase';
-import type { UserRole, AppUser } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
 
-interface AuthContextType {
-  user: AppUser | null;
-  role: UserRole | null;
+// Using simplified types with any for diagnostics
+interface SimplifiedAuthContextType {
+  user: any;
+  role: any;
   loading: boolean;
   isManuallyCheckingRole: boolean;
 }
 
-// Define a default value for the context that matches AuthContextType
-const defaultAuthContextValue: AuthContextType = {
+const defaultAuthContextValue: SimplifiedAuthContextType = {
   user: null,
   role: null,
-  loading: true,
-  isManuallyCheckingRole: false, // Set to an appropriate initial state
+  loading: true, 
+  isManuallyCheckingRole: false,
 };
 
-// Initialize context with the default value
-const AuthContext = createContext<AuthContextType>(defaultAuthContextValue);
+// The AuthContext is initialized here.
+const AuthContext = createContext<SimplifiedAuthContextType>(defaultAuthContextValue);
+
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<AppUser | null>(null);
-  const [role, setRole] = useState<UserRole | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isManuallyCheckingRole, setIsManuallyCheckingRole] = useState(false);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-      if (firebaseUser) {
-        setIsManuallyCheckingRole(true);
-        try {
-          const tokenResult = await firebaseUser.getIdTokenResult(true); // Force refresh
-          const userRole = (tokenResult.claims.role as UserRole) || 'employee';
-          setUser({ 
-            uid: firebaseUser.uid, 
-            displayName: firebaseUser.displayName, 
-            email: firebaseUser.email, 
-            photoURL: firebaseUser.photoURL,
-            ...firebaseUser, 
-            role: userRole 
-          });
-          setRole(userRole);
-        } catch (error) {
-          console.error("Error fetching user token or role:", error);
-          setUser({ 
-            uid: firebaseUser.uid, 
-            displayName: firebaseUser.displayName, 
-            email: firebaseUser.email, 
-            photoURL: firebaseUser.photoURL,
-             ...firebaseUser,
-            role: 'employee' 
-          });
-          setRole('employee'); 
-        } finally {
-          setIsManuallyCheckingRole(false);
-        }
-      } else {
-        setUser(null);
-        setRole(null);
-      }
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  const authContextValue: AuthContextType = {
-    user,
-    role,
-    loading,
-    isManuallyCheckingRole
+  // Drastically simplified for diagnostics:
+  // No useState, useEffect, or Firebase logic.
+  // Providing a hardcoded, simple value.
+  const diagnosticContextValue: SimplifiedAuthContextType = {
+    user: null, 
+    role: null, 
+    loading: false, 
+    isManuallyCheckingRole: false,
   };
 
+  const Provider = AuthContext.Provider; // Alias the Provider
+
+  // The problematic line according to the error messages
   return (
-    <AuthContext.Provider value={authContextValue}>
+    <Provider  value={diagnosticContextValue}>
       {children}
-    </AuthContext.Provider>
+    </Provider>
   );
 };
 
-export const useAuthClient = () => {
+export const useAuthClient = (): SimplifiedAuthContextType => {
   const context = useContext(AuthContext);
-  // If context is used outside of AuthProvider, it will be defaultAuthContextValue.
-  // The check for `undefined` was when createContext could be called with `undefined`.
-  // Now, it will always be an object. The "loading" state in defaultAuthContextValue handles the initial state.
-  if (context === undefined) { 
-    // This condition should ideally not be met if createContext has a default value,
-    // but kept as a safeguard or if useContext behaves unexpectedly.
-    throw new Error('useAuthClient must be used within an AuthProvider or AuthContext is undefined');
+  if (context === undefined) {
+    throw new Error('useAuthClient must be used within an AuthProvider or AuthContext is misconfigured');
   }
   return context;
 };
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requiredRole?: UserRole | UserRole[];
+  requiredRole?: any | any[]; 
   fallbackPath?: string;
 }
 
@@ -140,7 +94,7 @@ export const ProtectedRoute = ({ children, requiredRole, fallbackPath = '/login'
   }
 
   if (!user) {
-    return null; 
+    return null;
   }
 
   if (requiredRole) {
