@@ -18,6 +18,10 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Required for Vercel Speed Insights
+  // experimental: {
+  //   speedInsights: true, // This may vary based on Next.js version or specific Vercel package
+  // },
 };
 
 export default nextConfig;

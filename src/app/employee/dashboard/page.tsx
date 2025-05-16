@@ -1,0 +1,122 @@
+"use client";
+
+import AppLayout from '@/components/layout/app-layout';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuthClient } from '@/hooks/use-auth-client';
+import { db } from '@/config/firebase';
+import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
+import type { Trip } from '@/lib/types';
+import React, { useEffect, useState } from 'react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { format } from 'date-fns';
+import { Loader2 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from '@/components/ui/badge';
+
+export default function EmployeeDashboardPage() {
+  const { user } = useAuthClient();
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      const fetchTrips = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+          const tripsRef = collection(db, 'trips');
+          const q = query(tripsRef, where('userId', '==', user.uid), orderBy('tripDate', 'desc'));
+          const querySnapshot = await getDocs(q);
+          const userTrips = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Trip));
+          setTrips(userTrips);
+        } catch (err) {
+          console.error("Error fetching trips:", err);
+          setError("Failed to load your trips. Please try again later.");
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchTrips();
+    }
+  }, [user]);
+
+  const calculateDuration = (startTime: string, endTime: string, tripDate: Date | Timestamp): string => {
+    const date = tripDate instanceof Timestamp ? tripDate.toDate() : tripDate;
+    const startDateTime = new Date(date);
+    const [startHours, startMinutes] = startTime.split(':').map(Number);
+    startDateTime.setHours(startHours, startMinutes, 0, 0);
+
+    const endDateTime = new Date(date);
+    const [endHours, endMinutes] = endTime.split(':').map(Number);
+    endDateTime.setHours(endHours, endMinutes, 0, 0);
+    
+    if (endDateTime <= startDateTime) return "N/A";
+
+    let diffMs = endDateTime.getTime() - startDateTime.getTime();
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    diffMs -= hours * (1000 * 60 * 60);
+    const minutes = Math.floor(diffMs / (1000 * 60));
+    
+    return `${hours}h ${minutes}m`;
+  };
+
+  return (
+    <AppLayout requiredRole={['employee', 'manager']}>
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold tracking-tight">My Trips</h1>
+        
+        {error && (
+          <Alert variant="destructive">
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Your Trip History</CardTitle>
+            <CardDescription>A log of all trips you have submitted.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex justify-center items-center py-10">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="ml-2">Loading your trips...</p>
+              </div>
+            ) : trips.length === 0 && !error ? (
+              <p className="text-center text-muted-foreground py-10">You haven&apos;t submitted any trips yet.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Driver</TableHead>
+                    <TableHead>Time (Start/End)</TableHead>
+                    <TableHead>Duration</TableHead>
+                    <TableHead>Mileage (Start/End)</TableHead>
+                    <TableHead>Distance</TableHead>
+                    <TableHead className="text-right">Status</TableHead> 
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {trips.map((trip) => (
+                    <TableRow key={trip.id}>
+                      <TableCell>{format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : trip.tripDate, 'MMM dd, yyyy')}</TableCell>
+                      <TableCell>{trip.driverName}</TableCell>
+                      <TableCell>{trip.startTime} / {trip.endTime}</TableCell>
+                      <TableCell>{calculateDuration(trip.startTime, trip.endTime, trip.tripDate)}</TableCell>
+                      <TableCell>{trip.startMileage} / {trip.endMileage}</TableCell>
+                      <TableCell>{trip.endMileage - trip.startMileage} miles</TableCell>
+                       <TableCell className="text-right"><Badge variant="secondary">Submitted</Badge></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </AppLayout>
+  );
+}
