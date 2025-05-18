@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect } from 'react';
@@ -10,26 +11,27 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
+    // Wait until loading is false AND isManuallyCheckingRole is false
+    // This ensures we have the latest auth state and role information.
     if (loading || isManuallyCheckingRole) {
-      // Still waiting for auth state or role to be determined
-      return;
+      return; // Still determining auth state or role, do nothing yet
     }
 
-    if (user) {
-      // User is logged in, redirect based on role
+    if (user && role) { // Ensure both user and role are determined
       if (role === 'manager') {
         router.replace('/manager/dashboard');
-      } else {
-        // Default to employee dashboard if role is 'employee' or not yet defined but user exists
+      } else { // 'employee' or any other role defaults to employee dashboard
         router.replace('/employee/dashboard');
       }
-    } else {
-      // User is not logged in, redirect to login page
+    } else if (!user && !loading && !isManuallyCheckingRole) {
+      // Explicitly check if not loading AND no user, then redirect to login
       router.replace('/login');
     }
+    // If user exists but role is somehow null (should not happen with current AuthProvider logic),
+    // it will loop or stay on '/' (blank page). The AuthProvider defaults role to 'employee'.
   }, [user, role, loading, isManuallyCheckingRole, router]);
 
-  // Show a loading spinner while redirecting
+  // Show a loading spinner while auth state is being determined or redirecting
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background">
       <Loader2 className="h-16 w-16 animate-spin text-primary" />
