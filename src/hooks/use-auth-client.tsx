@@ -5,9 +5,9 @@ import type { ReactNode } from 'react';
 // Minimal AuthProvider for parsing diagnostics
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   return (
-    <div>
+    <>
       {children}
-    </div>
+    </>
   );
 };
 
