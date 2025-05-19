@@ -22,7 +22,7 @@ import { CalendarIcon, Loader2, SearchIcon, Brain, Pencil, AlertCircle, Printer 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter} from "@/components/ui/dialog";
-import { cn } from "@/lib/utils"; 
+import { cn } from "@/lib/utils";
 import EditTripForm from '@/components/trips/edit-trip-form';
 import { updateTrip } from '@/lib/trip.actions';
 
@@ -277,7 +277,7 @@ export default function ManagerDashboardPage() {
               {!isFetchingSuggestion && !maintenanceSuggestion && filteredTrips.length > 0 && (
                  <p className="text-sm text-muted-foreground">No specific cleaning or fuel reminders from recent trips.</p>
               )}
-              {!isFetchingSuggestion && !maintenanceSuggestion && filteredTrips.length === 0 && (
+               {!isFetchingSuggestion && !maintenanceSuggestion && filteredTrips.length === 0 && (
                  <p className="text-sm text-muted-foreground">Not enough trip data to generate suggestions at the moment.</p>
               )}
             </CardContent>
@@ -389,17 +389,17 @@ export default function ManagerDashboardPage() {
                 <Table className="table-print">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Driver</TableHead>
-                      <TableHead>From</TableHead>
-                      <TableHead>To</TableHead>
-                      <TableHead>Time (Start/End)</TableHead>
-                      <TableHead>Duration</TableHead>
-                       <TableHead>Mileage (Start/End)</TableHead>
-                      <TableHead>Distance</TableHead>
-                      <TableHead>Details</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right no-print">Actions</TableHead>
+                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Date</TableHead>
+                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Driver</TableHead>
+                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">From</TableHead>
+                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">To</TableHead>
+                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Time (Start/End)</TableHead>
+                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Duration</TableHead>
+                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Mileage (Start/End)</TableHead>
+                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Distance</TableHead>
+                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Details</TableHead>
+                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Status</TableHead>
+                      <TableHead className="text-right no-print px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -408,19 +408,33 @@ export default function ManagerDashboardPage() {
                       const distance = trip.endMileage != null && trip.startMileage != null ? (trip.endMileage - trip.startMileage) : null;
                       return (
                         <TableRow key={trip.id}>
-                          <TableCell>{format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : new Date(trip.tripDate), 'MMM dd, yyyy')}</TableCell>
-                          <TableCell>{trip.driverName}</TableCell>
-                          <TableCell>{trip.fromLocation}</TableCell>
-                          <TableCell>{trip.toLocation || 'N/A'}</TableCell>
-                          <TableCell>{trip.startTime} / {trip.endTime || 'N/A'}</TableCell>
-                          <TableCell>{calculateDuration(trip.startTime, trip.endTime, trip.tripDate)}</TableCell>
-                          <TableCell>{trip.startMileage} / {trip.endMileage != null ? trip.endMileage : 'N/A'}</TableCell>
-                          <TableCell>{distance != null ? `${distance} miles` : 'N/A'}</TableCell>
-                          <TableCell className="max-w-[150px] truncate" title={trip.tripDetails}>{trip.tripDetails || 'N/A'}</TableCell>
-                          <TableCell>
+                          <TableCell className="p-2 md:p-3 lg:p-4 whitespace-nowrap">
+                            {format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : new Date(trip.tripDate), 'MMM dd, yyyy')}
+                          </TableCell>
+                          <TableCell className="p-2 md:p-3 lg:p-4 min-w-[120px] max-w-[180px] truncate">{trip.driverName}</TableCell>
+                          <TableCell className="p-2 md:p-3 lg:p-4 min-w-[100px] max-w-[150px] truncate">{trip.fromLocation}</TableCell>
+                          <TableCell className="p-2 md:p-3 lg:p-4 min-w-[100px] max-w-[150px] truncate">{trip.toLocation || 'N/A'}</TableCell>
+                          <TableCell className="p-2 md:p-3 lg:p-4">
+                            <div className="flex flex-col lg:flex-row lg:items-center text-xs sm:text-sm">
+                              <span>{trip.startTime}</span>
+                              <span className="hidden lg:inline mx-1 text-muted-foreground">/</span>
+                              <span className="text-muted-foreground lg:text-current">{trip.endTime || 'N/A'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="p-2 md:p-3 lg:p-4 whitespace-nowrap">{calculateDuration(trip.startTime, trip.endTime, trip.tripDate)}</TableCell>
+                          <TableCell className="p-2 md:p-3 lg:p-4">
+                            <div className="flex flex-col lg:flex-row lg:items-center text-xs sm:text-sm">
+                              <span>{trip.startMileage}</span>
+                              <span className="hidden lg:inline mx-1 text-muted-foreground">/</span>
+                              <span className="text-muted-foreground lg:text-current">{trip.endMileage != null ? trip.endMileage : 'N/A'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="p-2 md:p-3 lg:p-4 whitespace-nowrap">{distance != null ? `${distance} miles` : 'N/A'}</TableCell>
+                          <TableCell className="p-2 md:p-3 lg:p-4 max-w-[100px] md:max-w-[150px] lg:max-w-[180px] truncate" title={trip.tripDetails}>{trip.tripDetails || 'N/A'}</TableCell>
+                          <TableCell className="p-2 md:p-3 lg:p-4">
                             <Badge variant={status.variant as any} className="badge-print">{status.text}</Badge>
                           </TableCell>
-                          <TableCell className="text-right space-x-1 no-print">
+                          <TableCell className="p-2 md:p-3 lg:p-4 text-right space-x-0 sm:space-x-1 no-print">
                             <Button variant="ghost" size="icon" onClick={() => handleSummarize(trip)} disabled={isSummarizing && currentTripForSummary?.id === trip.id} className="p-1 h-8 w-8" title="Summarize Trip Details">
                               {isSummarizing && currentTripForSummary?.id === trip.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
                               <span className="sr-only">Summarize</span>
@@ -495,6 +509,3 @@ export default function ManagerDashboardPage() {
     </AppLayout>
   );
 }
-
-
-    
