@@ -1,3 +1,4 @@
+
 "use client";
 
 import AppLayout from '@/components/layout/app-layout';
@@ -28,7 +29,15 @@ export default function EmployeeDashboardPage() {
           const tripsRef = collection(db, 'trips');
           const q = query(tripsRef, where('userId', '==', user.uid), orderBy('tripDate', 'desc'));
           const querySnapshot = await getDocs(q);
-          const userTrips = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Trip));
+          const userTrips = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return { 
+              id: doc.id, 
+              ...data,
+              // Ensure tripDate is a JS Date object for client-side consistency
+              tripDate: data.tripDate instanceof Timestamp ? data.tripDate.toDate() : new Date(data.tripDate) 
+            } as Trip;
+          });
           setTrips(userTrips);
         } catch (err) {
           console.error("Error fetching trips:", err);
@@ -41,8 +50,10 @@ export default function EmployeeDashboardPage() {
     }
   }, [user]);
 
-  const calculateDuration = (startTime: string, endTime: string, tripDate: Date | Timestamp): string => {
-    const date = tripDate instanceof Timestamp ? tripDate.toDate() : tripDate;
+  const calculateDuration = (startTime?: string | null, endTime?: string | null, tripDate?: Date | Timestamp | null): string => {
+    if (!startTime || !endTime || !tripDate) return "N/A";
+    
+    const date = tripDate instanceof Timestamp ? tripDate.toDate() : new Date(tripDate);
     const startDateTime = new Date(date);
     const [startHours, startMinutes] = startTime.split(':').map(Number);
     startDateTime.setHours(startHours, startMinutes, 0, 0);
@@ -51,7 +62,7 @@ export default function EmployeeDashboardPage() {
     const [endHours, endMinutes] = endTime.split(':').map(Number);
     endDateTime.setHours(endHours, endMinutes, 0, 0);
     
-    if (endDateTime <= startDateTime) return "N/A";
+    if (endDateTime <= startDateTime) return "N/A"; // Should not happen with validation
 
     let diffMs = endDateTime.getTime() - startDateTime.getTime();
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -59,6 +70,13 @@ export default function EmployeeDashboardPage() {
     const minutes = Math.floor(diffMs / (1000 * 60));
     
     return `${hours}h ${minutes}m`;
+  };
+
+  const getTripStatus = (trip: Trip): { text: string; variant: "default" | "secondary" | "outline" | "destructive" } => {
+    if (trip.endTime && trip.endMileage != null) {
+      return { text: "Completed", variant: "default" };
+    }
+    return { text: "Pending Completion", variant: "secondary" };
   };
 
   return (
@@ -76,7 +94,7 @@ export default function EmployeeDashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Your Trip History</CardTitle>
-            <CardDescription>A log of all trips you have submitted.</CardDescription>
+            <CardDescription>A log of all trips you have submitted. You can complete pending trips by editing them via the Manager Dashboard if applicable, or by contacting your manager.</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -100,17 +118,22 @@ export default function EmployeeDashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {trips.map((trip) => (
-                    <TableRow key={trip.id}>
-                      <TableCell>{format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : trip.tripDate, 'MMM dd, yyyy')}</TableCell>
-                      <TableCell>{trip.driverName}</TableCell>
-                      <TableCell>{trip.startTime} / {trip.endTime}</TableCell>
-                      <TableCell>{calculateDuration(trip.startTime, trip.endTime, trip.tripDate)}</TableCell>
-                      <TableCell>{trip.startMileage} / {trip.endMileage}</TableCell>
-                      <TableCell>{trip.endMileage - trip.startMileage} miles</TableCell>
-                       <TableCell className="text-right"><Badge variant="secondary">Submitted</Badge></TableCell>
-                    </TableRow>
-                  ))}
+                  {trips.map((trip) => {
+                    const status = getTripStatus(trip);
+                    return (
+                      <TableRow key={trip.id}>
+                        <TableCell>{format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : trip.tripDate, 'MMM dd, yyyy')}</TableCell>
+                        <TableCell>{trip.driverName}</TableCell>
+                        <TableCell>{trip.startTime} / {trip.endTime || 'N/A'}</TableCell>
+                        <TableCell>{calculateDuration(trip.startTime, trip.endTime, trip.tripDate)}</TableCell>
+                        <TableCell>{trip.startMileage} / {trip.endMileage != null ? trip.endMileage : 'N/A'}</TableCell>
+                        <TableCell>{trip.endMileage != null && trip.startMileage != null ? (trip.endMileage - trip.startMileage) + ' miles' : 'N/A'}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={status.variant as any}>{status.text}</Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}

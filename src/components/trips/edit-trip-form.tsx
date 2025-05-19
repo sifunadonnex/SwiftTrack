@@ -13,9 +13,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import type { Trip, TripFormData } from "@/lib/types";
-import { Timestamp } from "firebase/firestore"; // Added import
+import { Timestamp } from "firebase/firestore"; 
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/; // HH:MM format
 
@@ -23,25 +23,32 @@ const editTripFormSchema = z.object({
   tripDate: z.date({ required_error: "Trip date is required." }),
   driverName: z.string().min(2, { message: "Driver name must be at least 2 characters." }),
   startTime: z.string().regex(timeRegex, { message: "Invalid start time format (HH:MM)." }),
-  endTime: z.string().regex(timeRegex, { message: "Invalid end time format (HH:MM)." }),
+  endTime: z.string().regex(timeRegex, { message: "Invalid end time format (HH:MM)." }).optional().or(z.literal('')),
   startMileage: z.string().refine(val => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, { message: "Start mileage must be a non-negative number." }),
-  endMileage: z.string().refine(val => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, { message: "End mileage must be a non-negative number." }),
+  endMileage: z.string().refine(val => val === '' || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0), { message: "End mileage must be a non-negative number if provided." }).optional().or(z.literal('')),
   tripDetails: z.string().optional(),
 }).refine(data => {
-  const start = parseFloat(data.startMileage);
-  const end = parseFloat(data.endMileage);
-  return end >= start;
+  if (data.endMileage && data.endMileage.trim() !== "" && data.startMileage && data.startMileage.trim() !== "") {
+    const start = parseFloat(data.startMileage);
+    const end = parseFloat(data.endMileage);
+    if (isNaN(start) || isNaN(end)) return true; 
+    return end >= start;
+  }
+  return true;
 }, {
-  message: "End mileage must be greater than or equal to start mileage.",
+  message: "End mileage must be greater than or equal to start mileage, if provided.",
   path: ["endMileage"],
 }).refine(data => {
-    const [startHour, startMinute] = data.startTime.split(':').map(Number);
-    const [endHour, endMinute] = data.endTime.split(':').map(Number);
-    const startDate = new Date(2000, 0, 1, startHour, startMinute); // Use a fixed date for time comparison
-    const endDate = new Date(2000, 0, 1, endHour, endMinute);
-    return endDate > startDate;
+    if (data.endTime && data.endTime.trim() !== "" && data.startTime && data.startTime.trim() !== "") {
+        const [startHour, startMinute] = data.startTime.split(':').map(Number);
+        const [endHour, endMinute] = data.endTime.split(':').map(Number);
+        const startDate = new Date(2000, 0, 1, startHour, startMinute);
+        const endDate = new Date(2000, 0, 1, endHour, endMinute);
+        return endDate > startDate;
+    }
+    return true;
 }, {
-    message: "End time must be after start time.",
+    message: "End time must be after start time, if provided.",
     path: ["endTime"],
 });
 
@@ -58,9 +65,9 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
   
   const getInitialDate = (tripDate: Date | Timestamp | string): Date => {
     if (tripDate instanceof Timestamp) return tripDate.toDate();
-    if (typeof tripDate === 'string') return parseISO(tripDate); // Handles ISO string
-    if (tripDate instanceof Date) return tripDate; // Already a Date
-    return new Date(); // Fallback, should ideally not happen
+    if (typeof tripDate === 'string') return parseISO(tripDate); 
+    if (tripDate instanceof Date) return tripDate; 
+    return new Date(); 
   };
 
   const form = useForm<EditTripFormValues>({
@@ -69,9 +76,9 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
       tripDate: getInitialDate(trip.tripDate),
       driverName: trip.driverName || "",
       startTime: trip.startTime || "",
-      endTime: trip.endTime || "",
+      endTime: trip.endTime || "", // Firestore null will become empty string
       startMileage: trip.startMileage?.toString() || "0",
-      endMileage: trip.endMileage?.toString() || "0",
+      endMileage: trip.endMileage?.toString() || "", // Firestore null will become empty string
       tripDetails: trip.tripDetails || "",
     },
   });
@@ -83,18 +90,18 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
         startTime: trip.startTime || "",
         endTime: trip.endTime || "",
         startMileage: trip.startMileage?.toString() || "0",
-        endMileage: trip.endMileage?.toString() || "0",
+        endMileage: trip.endMileage?.toString() || "",
         tripDetails: trip.tripDetails || "",
     });
   }, [trip, form]);
 
   async function onSubmit(values: EditTripFormValues) {
     if (!trip.id) return;
-    // TripFormData expects mileage as strings, which they already are from the form
     const dataToSave: TripFormData = {
       ...values,
       startMileage: values.startMileage,
-      endMileage: values.endMileage,
+      endMileage: values.endMileage || null, // Pass null if empty
+      endTime: values.endTime || null, // Pass null if empty
     };
     await onSave(trip.id, dataToSave);
   }
@@ -172,7 +179,7 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
             name="endTime"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>End Time</FormLabel>
+                <FormLabel>End Time (Optional)</FormLabel>
                 <FormControl>
                   <Input type="time" {...field} />
                 </FormControl>
@@ -201,7 +208,7 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
             name="endMileage"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>End Mileage</FormLabel>
+                <FormLabel>End Mileage (Optional)</FormLabel>
                 <FormControl>
                   <Input type="number" placeholder="e.g., 15100" {...field} min="0" step="0.1" />
                 </FormControl>

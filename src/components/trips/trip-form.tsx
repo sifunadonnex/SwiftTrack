@@ -26,25 +26,32 @@ const tripFormSchema = z.object({
   tripDate: z.date({ required_error: "Trip date is required." }),
   driverName: z.string().min(2, { message: "Driver name must be at least 2 characters." }),
   startTime: z.string().regex(timeRegex, { message: "Invalid start time format (HH:MM)." }),
-  endTime: z.string().regex(timeRegex, { message: "Invalid end time format (HH:MM)." }),
+  endTime: z.string().regex(timeRegex, { message: "Invalid end time format (HH:MM)." }).optional().or(z.literal('')),
   startMileage: z.string().refine(val => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, { message: "Start mileage must be a non-negative number." }),
-  endMileage: z.string().refine(val => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, { message: "End mileage must be a non-negative number." }),
+  endMileage: z.string().refine(val => val === '' || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0), { message: "End mileage must be a non-negative number if provided." }).optional().or(z.literal('')),
   tripDetails: z.string().optional(),
 }).refine(data => {
-  const start = parseFloat(data.startMileage);
-  const end = parseFloat(data.endMileage);
-  return end >= start;
+  if (data.endMileage && data.endMileage.trim() !== "" && data.startMileage && data.startMileage.trim() !== "") {
+    const start = parseFloat(data.startMileage);
+    const end = parseFloat(data.endMileage);
+    if (isNaN(start) || isNaN(end)) return true; // Let individual field validation handle NaN
+    return end >= start;
+  }
+  return true;
 }, {
-  message: "End mileage must be greater than or equal to start mileage.",
+  message: "End mileage must be greater than or equal to start mileage, if provided.",
   path: ["endMileage"],
 }).refine(data => {
-    const [startHour, startMinute] = data.startTime.split(':').map(Number);
-    const [endHour, endMinute] = data.endTime.split(':').map(Number);
-    const startDate = new Date(2000, 0, 1, startHour, startMinute);
-    const endDate = new Date(2000, 0, 1, endHour, endMinute);
-    return endDate > startDate;
+    if (data.endTime && data.endTime.trim() !== "" && data.startTime && data.startTime.trim() !== "") {
+        const [startHour, startMinute] = data.startTime.split(':').map(Number);
+        const [endHour, endMinute] = data.endTime.split(':').map(Number);
+        const startDate = new Date(2000, 0, 1, startHour, startMinute);
+        const endDate = new Date(2000, 0, 1, endHour, endMinute);
+        return endDate > startDate;
+    }
+    return true;
 }, {
-    message: "End time must be after start time.",
+    message: "End time must be after start time, if provided.",
     path: ["endTime"],
 });
 
@@ -74,21 +81,22 @@ export default function TripForm() {
   }, [user, form]);
 
   async function onSubmit(values: z.infer<typeof tripFormSchema>) {
-    if (!user || !user.uid) { // Ensure user and user.uid are available
+    if (!user || !user.uid) { 
       toast({ title: "Error", description: "You must be logged in to submit a trip.", variant: "destructive" });
-      setIsSubmitting(false); // Also set submitting to false here
+      setIsSubmitting(false); 
       return;
     }
     setIsSubmitting(true);
     
     const tripData: TripFormData = {
       ...values,
+      // Ensure empty strings for optional fields are passed as such or converted to null by server action
+      endTime: values.endTime || null, 
       startMileage: values.startMileage, 
-      endMileage: values.endMileage,   
+      endMileage: values.endMileage || null,   
     };
 
     try {
-      // Pass user.uid as the first argument
       const result = await addTrip(user.uid, tripData); 
       if (result.success && result.tripId) {
         toast({
@@ -194,7 +202,7 @@ export default function TripForm() {
             name="endTime"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>End Time</FormLabel>
+                <FormLabel>End Time (Optional)</FormLabel>
                 <FormControl>
                   <Input type="time" {...field} />
                 </FormControl>
@@ -224,7 +232,7 @@ export default function TripForm() {
             name="endMileage"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>End Mileage</FormLabel>
+                <FormLabel>End Mileage (Optional)</FormLabel>
                 <FormControl>
                   <Input type="number" placeholder="e.g., 15100" {...field} min="0" step="0.1" />
                 </FormControl>

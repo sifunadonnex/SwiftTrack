@@ -105,14 +105,14 @@ export default function ManagerDashboardPage() {
         setMaintenanceSuggestion(null); 
         try {
           const relevantTripDetails = filteredTrips
-            .slice(0, 30) // Analyze up to 30 most recent filtered trips
+            .slice(0, 30) 
             .map(trip => trip.tripDetails)
             .filter((details): details is string => typeof details === 'string' && details.trim() !== '');
 
           if (relevantTripDetails.length > 0) {
             const input: MaintenanceReminderInput = { tripDetailsList: relevantTripDetails };
             const result = await getMaintenanceSuggestion(input);
-            if (result.suggestion) { // Check if suggestion is not null or empty
+            if (result.suggestion) { 
                setMaintenanceSuggestion(result.suggestion);
             } else {
               setMaintenanceSuggestion(null);
@@ -198,13 +198,16 @@ export default function ManagerDashboardPage() {
 
   const aggregateSummary = useMemo(() => {
     if (filteredTrips.length === 0) return { totalTrips: 0, totalDistance: 0, averageDistance: 0 };
-    const totalTrips = filteredTrips.length;
-    const totalDistance = filteredTrips.reduce((sum, trip) => sum + (trip.endMileage - trip.startMileage), 0);
-    const averageDistance = totalTrips > 0 ? parseFloat((totalDistance / totalTrips).toFixed(1)) : 0;
+    const completedTrips = filteredTrips.filter(trip => trip.endMileage != null && trip.startMileage != null);
+    const totalTrips = filteredTrips.length; // Show total trips regardless of completion for this stat
+    const totalDistance = completedTrips.reduce((sum, trip) => sum + (trip.endMileage! - trip.startMileage!), 0);
+    const averageDistance = completedTrips.length > 0 ? parseFloat((totalDistance / completedTrips.length).toFixed(1)) : 0;
     return { totalTrips, totalDistance, averageDistance };
   }, [filteredTrips]);
 
-  const calculateDuration = (startTime: string, endTime: string, tripDate: Date | Timestamp): string => {
+  const calculateDuration = (startTime?: string | null, endTime?: string | null, tripDate?: Date | Timestamp | null): string => {
+    if (!startTime || !endTime || !tripDate) return "N/A";
+    
     const date = tripDate instanceof Timestamp ? tripDate.toDate() : new Date(tripDate);
     const startDateTime = new Date(date);
     const [startHours, startMinutes] = startTime.split(':').map(Number);
@@ -223,6 +226,14 @@ export default function ManagerDashboardPage() {
     
     return `${hours}h ${minutes}m`;
   };
+
+  const getTripStatusBadge = (trip: Trip): { text: string; variant: "default" | "secondary" | "outline" | "destructive" } => {
+    if (trip.endTime && trip.endMileage != null) {
+      return { text: "Completed", variant: "default" };
+    }
+    return { text: "Pending", variant: "secondary" };
+  };
+
 
   return (
     <AppLayout requiredRole="manager">
@@ -268,20 +279,20 @@ export default function ManagerDashboardPage() {
         <Card className="shadow-md">
           <CardHeader>
             <CardTitle>Trip Log Overview</CardTitle>
-            <CardDescription>View, filter, and analyze all submitted trips.</CardDescription>
+            <CardDescription>View, filter, and analyze all submitted trips. Trips pending completion can be edited.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-muted/30">
               <div>
-                <p className="text-sm text-muted-foreground">Total Trips</p>
+                <p className="text-sm text-muted-foreground">Total Trips (Filtered)</p>
                 <p className="text-2xl font-semibold">{aggregateSummary.totalTrips}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Distance</p>
+                <p className="text-sm text-muted-foreground">Total Distance (Completed)</p>
                 <p className="text-2xl font-semibold">{aggregateSummary.totalDistance} miles</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Average Distance/Trip</p>
+                <p className="text-sm text-muted-foreground">Avg. Distance (Completed)</p>
                 <p className="text-2xl font-semibold">{aggregateSummary.averageDistance} miles</p>
               </div>
             </div>
@@ -340,32 +351,42 @@ export default function ManagerDashboardPage() {
                       <TableHead>Driver</TableHead>
                       <TableHead>Time (Start/End)</TableHead>
                       <TableHead>Duration</TableHead>
+                       <TableHead>Mileage (Start/End)</TableHead>
                       <TableHead>Distance</TableHead>
                       <TableHead>Details</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredTrips.map((trip) => (
-                      <TableRow key={trip.id}>
-                        <TableCell>{format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : new Date(trip.tripDate), 'MMM dd, yyyy')}</TableCell>
-                        <TableCell>{trip.driverName}</TableCell>
-                        <TableCell>{trip.startTime} / {trip.endTime}</TableCell>
-                        <TableCell>{calculateDuration(trip.startTime, trip.endTime, trip.tripDate)}</TableCell>
-                        <TableCell>{trip.endMileage - trip.startMileage} miles</TableCell>
-                        <TableCell className="max-w-xs truncate" title={trip.tripDetails}>{trip.tripDetails || 'N/A'}</TableCell>
-                        <TableCell className="text-right space-x-1">
-                          <Button variant="ghost" size="icon" onClick={() => handleSummarize(trip)} disabled={isSummarizing && currentTripForSummary?.id === trip.id} className="p-1 h-8 w-8" title="Summarize Trip Details">
-                            {isSummarizing && currentTripForSummary?.id === trip.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
-                            <span className="sr-only">Summarize</span>
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleEditTrip(trip)} className="p-1 h-8 w-8" title="Edit Trip">
-                            <Pencil className="h-4 w-4" />
-                            <span className="sr-only">Edit</span>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {filteredTrips.map((trip) => {
+                      const status = getTripStatusBadge(trip);
+                      const distance = trip.endMileage != null && trip.startMileage != null ? (trip.endMileage - trip.startMileage) : null;
+                      return (
+                        <TableRow key={trip.id}>
+                          <TableCell>{format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : new Date(trip.tripDate), 'MMM dd, yyyy')}</TableCell>
+                          <TableCell>{trip.driverName}</TableCell>
+                          <TableCell>{trip.startTime} / {trip.endTime || 'N/A'}</TableCell>
+                          <TableCell>{calculateDuration(trip.startTime, trip.endTime, trip.tripDate)}</TableCell>
+                          <TableCell>{trip.startMileage} / {trip.endMileage != null ? trip.endMileage : 'N/A'}</TableCell>
+                          <TableCell>{distance != null ? `${distance} miles` : 'N/A'}</TableCell>
+                          <TableCell className="max-w-[150px] truncate" title={trip.tripDetails}>{trip.tripDetails || 'N/A'}</TableCell>
+                          <TableCell>
+                            <Badge variant={status.variant as any}>{status.text}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right space-x-1">
+                            <Button variant="ghost" size="icon" onClick={() => handleSummarize(trip)} disabled={isSummarizing && currentTripForSummary?.id === trip.id} className="p-1 h-8 w-8" title="Summarize Trip Details">
+                              {isSummarizing && currentTripForSummary?.id === trip.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
+                              <span className="sr-only">Summarize</span>
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleEditTrip(trip)} className="p-1 h-8 w-8" title="Edit Trip">
+                              <Pencil className="h-4 w-4" />
+                              <span className="sr-only">Edit</span>
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
