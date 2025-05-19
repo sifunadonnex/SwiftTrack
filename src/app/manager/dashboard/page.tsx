@@ -93,8 +93,6 @@ export default function ManagerDashboardPage() {
     }
     if (filters.dateRange?.from) {
       const rangeStart = startOfDay(filters.dateRange.from);
-      // If only 'from' is selected, treat 'to' as the end of that same day.
-      // Otherwise, use the selected 'to' date.
       const rangeEnd = filters.dateRange.to ? endOfDay(filters.dateRange.to) : endOfDay(filters.dateRange.from);
 
       tempTrips = tempTrips.filter(trip => {
@@ -285,14 +283,31 @@ export default function ManagerDashboardPage() {
             </CardContent>
           </Card>
         )}
+        
+        <div className="print-only">
+          <h2>Trip Report Filters</h2>
+          <p>
+            Driver: {filters.driverName === 'all' ? 'All Drivers' : filters.driverName}
+          </p>
+          <p>
+            Date Range: {
+              filters.dateRange?.from
+                ? (filters.dateRange.to
+                    ? `${format(filters.dateRange.from, "MMM dd, yyyy")} - ${format(filters.dateRange.to, "MMM dd, yyyy")}`
+                    : format(filters.dateRange.from, "MMM dd, yyyy")
+                  )
+                : "All Dates"
+            }
+          </p>
+        </div>
 
         <Card className="shadow-md card-print">
           <CardHeader>
-            <CardTitle>Trip Log Overview</CardTitle>
-            <CardDescription>View, filter, and analyze all submitted trips. Trips pending completion can be edited.</CardDescription>
+            <CardTitle className="card-title-print">Trip Log Overview</CardTitle>
+            <CardDescription className="card-description-print">View, filter, and analyze all submitted trips. Trips pending completion can be edited.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-muted/30">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-muted/30 aggregate-summary-print">
               <div>
                 <p className="text-sm text-muted-foreground">Total Trips (Filtered)</p>
                 <p className="text-2xl font-semibold">{aggregateSummary.totalTrips}</p>

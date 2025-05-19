@@ -89,66 +89,155 @@
   }
 }
 
+/* Screen-only utility: hides element unless printing */
+.print-only {
+  display: none;
+}
+
 @media print {
+  /* Hide elements not meant for printing */
   .no-print {
     display: none !important;
   }
-  body {
+
+  /* Basic page setup */
+  html, body {
     background-color: white !important;
     color: black !important;
-    -webkit-print-color-adjust: exact; /* Chrome, Safari */
-    print-color-adjust: exact; /* Firefox */
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    font-size: 10pt; /* Base font size for print */
   }
-  .print-container {
+
+  /* Main layout containers for print */
+  .print-container, main {
     width: 100% !important;
     padding: 0 !important;
     margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-width: none !important;
   }
+  
+  /* Overrides for specific elements that might have screen-specific overflow */
+  div[style*="overflow-x: auto"], .overflow-x-auto {
+    overflow-x: visible !important;
+  }
+
+  /* Card styling for print */
   .card-print {
     border: 1px solid #ccc !important;
     box-shadow: none !important;
     background-color: white !important;
-    padding: 10px !important;
-    margin-top: 0 !important;
+    padding: 15px !important;
+    margin-top: 10px !important; /* Give some space if multiple cards */
     page-break-inside: avoid;
   }
+  .card-print .card-title-print {
+    font-size: 16pt !important;
+    font-weight: bold !important;
+    margin-bottom: 10px !important;
+  }
+   .card-print .card-description-print {
+    font-size: 10pt !important;
+    margin-bottom: 15px !important;
+  }
+
+  /* Table styling for print */
   .table-print {
     width: 100% !important;
     border-collapse: collapse !important;
+    table-layout: auto; 
+    font-size: 9pt !important;
   }
   .table-print th, .table-print td {
-    border: 1px solid #666 !important;
-    padding: 5px !important;
+    border: 1px solid #999 !important;
+    padding: 4px 6px !important;
     color: black !important;
-    font-size: 10pt !important; /* Adjust for print readability */
     word-break: break-word;
+    text-align: left !important;
   }
   .table-print th {
-    background-color: #e0e0e0 !important; /* Light gray for table headers */
-    font-weight: bold;
+    background-color: #f0f0f0 !important;
+    font-weight: bold !important;
+  }
+  .table-print tr {
+    page-break-inside: avoid;
   }
   .table-print tr:nth-child(even) {
-    background-color: #f9f9f9 !important; /* Optional: very light stripping for readability */
+    background-color: #f9f9f9 !important;
   }
+
+  /* Badge styling for print */
   .badge-print {
-    border: 1px solid #666 !important;
+    border: 1px solid #888 !important;
     color: black !important;
     background-color: white !important;
-    padding: 1px 3px !important;
-    font-size: 0.75em !important;
-    border-radius: 4px !important;
-    display: inline-block; /* Ensure it flows with text */
+    padding: 1px 4px !important;
+    font-size: 0.8em !important;
+    border-radius: 3px !important;
+    display: inline-block;
+    font-weight: normal !important;
+    box-shadow: none !important;
   }
-  h1, h2, h3, h4, h5, h6, p {
-    color: black !important; /* Ensure all text is black */
+
+  /* General text elements */
+  h1, h2, h3, h4, h5, h6, p, span, div {
+    color: black !important;
+    background-color: transparent !important;
   }
-  /* Ensure links are underlined but not colored for print */
+  
+  /* Aggregate summary text styling for print */
+  .aggregate-summary-print div p:first-child { /* Label, e.g., "Total Trips (Filtered)" */
+    font-size: 9pt !important;
+    color: #333 !important; 
+  }
+  .aggregate-summary-print div p:last-child { /* Value, e.g., the number */
+    font-size: 12pt !important;
+    font-weight: bold !important;
+  }
+
+  /* Links for print */
   a {
-    text-decoration: underline !important;
+    text-decoration: none !important; 
     color: black !important;
   }
-  /* Hide images unless explicitly marked for print */
+  a[href^="http"]:after { 
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    font-weight: normal;
+  }
+
+  /* Hide images by default, allow specific images if needed */
   img:not(.print-image) {
     display: none !important;
+  }
+  .print-image {
+    display: block !important;
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Display section for print-only filter criteria */
+  .print-only {
+    display: block !important; /* Visible only for print */
+    margin-bottom: 1rem !important;
+    padding-bottom: 0.5rem !important;
+    border-bottom: 1px solid #ccc !important;
+  }
+  .print-only h2 { /* Title for the filter section */
+    font-size: 14pt !important;
+    font-weight: bold !important;
+    margin-bottom: 0.5rem !important;
+  }
+  .print-only p { /* Filter criteria text */
+    font-size: 10pt !important;
+    margin-bottom: 0.25rem !important;
   }
 }
