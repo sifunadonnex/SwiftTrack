@@ -12,7 +12,7 @@ interface AuthContextType {
   user: AppUser | null;
   role: UserRole | null;
   loading: boolean;
-  isManuallyCheckingRole: boolean; // True when explicitly fetching/waiting for role after auth change
+  isManuallyCheckingRole: boolean;
 }
 
 const defaultAuthContextValue: AuthContextType = {
@@ -32,29 +32,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-      setLoading(true); // Start loading on any auth state change
-      setIsManuallyCheckingRole(true); // Indicate we're about to check/fetch role
+      setLoading(true);
+      setIsManuallyCheckingRole(true);
 
       if (firebaseUser) {
         try {
-          // Force refresh token to get latest custom claims
-          const idTokenResult = await firebaseUser.getIdTokenResult(true);
-          const userRole = (idTokenResult.claims.role as UserRole) || 'employee'; // Default to 'employee' if no role claim
-
-          setUser({ ...firebaseUser, role: userRole });
+          const idTokenResult = await firebaseUser.getIdTokenResult(true); // Force refresh token
+          const userRole = (idTokenResult.claims.role as UserRole) || 'employee';
+          
+          setUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+            emailVerified: firebaseUser.emailVerified,
+            // Add any other FirebaseUser properties you need
+          } as AppUser); // Cast to AppUser
           setRole(userRole);
+
         } catch (error) {
           console.error("Error fetching custom claims:", error);
-          // Fallback if claims fetching fails
-          setUser({ ...firebaseUser, role: 'employee' }); // Assign a default role
-          setRole('employee');
+          setUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+            emailVerified: firebaseUser.emailVerified,
+          } as AppUser);
+          setRole('employee'); // Fallback role
         }
       } else {
         setUser(null);
         setRole(null);
       }
-      setIsManuallyCheckingRole(false); // Done with role checking
-      setLoading(false); // Finish loading
+      setIsManuallyCheckingRole(false);
+      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -77,6 +89,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 export const useAuthClient = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {
+    // This check should ideally happen only once when the context is created
+    // or provide a default value that indicates an uninitialized state.
+    // Throwing an error here might be too aggressive if context can be legitimately undefined during setup.
+    // However, given the typical usage, this is a common pattern.
     throw new Error('useAuthClient must be used within an AuthProvider');
   }
   return context;
@@ -92,6 +108,31 @@ export const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) 
   const router = useRouter();
   const pathname = usePathname();
 
+  useEffect(() => {
+    if (loading || isManuallyCheckingRole) {
+      return; // Still determining auth state, do nothing yet
+    }
+
+    if (!user) {
+      // User not logged in, redirect to login
+      router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
+      return;
+    }
+
+    if (requiredRole) {
+      const rolesArray = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
+      if (!role || !rolesArray.includes(role)) {
+        // User does not have the required role, redirect
+        console.warn(`User with role '${role}' tried to access '${pathname}' which requires '${requiredRole}'. Redirecting.`);
+        if (role === 'manager') {
+          router.replace('/manager/dashboard');
+        } else {
+          router.replace('/employee/dashboard');
+        }
+      }
+    }
+  }, [user, role, loading, isManuallyCheckingRole, router, pathname, requiredRole]);
+
   if (loading || isManuallyCheckingRole) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background">
@@ -100,28 +141,19 @@ export const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) 
       </div>
     );
   }
-
+  
+  // Additional check after useEffect logic might have run, but before rendering children.
+  // This handles cases where redirect logic inside useEffect has not yet unmounted the component.
   if (!user) {
-    // User not logged in, redirect to login
-    // Pass the current path as a redirect query param
-    router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
-    return null; // Render nothing while redirecting
+      return null; // Render nothing if user is null (already being redirected)
   }
-
   if (requiredRole) {
     const rolesArray = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
     if (!role || !rolesArray.includes(role)) {
-      // User does not have the required role, redirect to their default dashboard or an unauthorized page
-      // For simplicity, redirecting to their likely default dashboard or home
-      console.warn(`User with role '${role}' tried to access a route requiring '${requiredRole}'. Redirecting.`);
-      if (role === 'manager') {
-        router.replace('/manager/dashboard');
-      } else {
-        router.replace('/employee/dashboard');
-      }
-      return null; // Render nothing while redirecting
+        return null; // Render nothing if role mismatch (already being redirected)
     }
   }
+
 
   return <>{children}</>;
 };
