@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -93,6 +94,10 @@
 .print-only {
   display: none;
 }
+.print-only-table {
+  display: none;
+}
+
 
 @media print {
   /* Hide elements not meant for printing */
@@ -130,7 +135,7 @@
     overflow-x: visible !important;
   }
 
-  /* Card styling for print */
+  /* Card styling for print (general card, if some are still shown) */
   .card-print {
     border: 1px solid #ccc !important;
     box-shadow: none !important;
@@ -150,6 +155,10 @@
   }
 
   /* Table styling for print */
+  .print-only-table { /* Make the print-specific table visible */
+    display: block !important;
+    margin-top: 1rem; /* Space above the table */
+  }
   .table-print {
     width: 100% !important;
     border-collapse: collapse !important;
@@ -162,6 +171,7 @@
     color: black !important;
     word-break: break-word;
     text-align: left !important;
+    vertical-align: top;
   }
   .table-print th {
     background-color: #f0f0f0 !important;
@@ -241,3 +251,5 @@
     margin-bottom: 0.25rem !important;
   }
 }
+
+    
