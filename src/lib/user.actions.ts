@@ -30,8 +30,9 @@ export async function updateUserProfile(
     revalidatePath('/', 'layout'); // Revalidate the whole layout if display name is in header/sidebar
 
     return { success: true };
-  } catch (error: any)
+  } catch (error: any) { // Added opening curly brace here
     console.error('Error updating user profile in Firestore:', error);
     return { success: false, error: error.message || 'Failed to update profile.' };
   }
 }
+
