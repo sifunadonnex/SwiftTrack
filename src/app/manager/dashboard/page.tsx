@@ -2,13 +2,13 @@
 "use client";
 
 import AppLayout from '@/components/layout/app-layout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+// Removed Table imports as we are switching to cards
 import { summarizeTripDetails, type SummarizeTripDetailsInput } from '@/ai/flows/summarize-trip-details';
 import { getMaintenanceSuggestion, type MaintenanceReminderInput } from '@/ai/flows/maintenance-reminder-flow.ts';
 import { useToast } from '@/hooks/use-toast';
@@ -18,7 +18,7 @@ import { db } from '@/config/firebase';
 import { collection, query, getDocs, orderBy, where, Timestamp } from 'firebase/firestore';
 import { format, parseISO, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
-import { CalendarIcon, Loader2, SearchIcon, Brain, Pencil, AlertCircle, Printer } from 'lucide-react';
+import { CalendarIcon, Loader2, SearchIcon, Brain, Pencil, AlertCircle, Printer, MapPin, Clock, Gauge, Route } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter} from "@/components/ui/dialog";
@@ -301,7 +301,7 @@ export default function ManagerDashboardPage() {
           </p>
         </div>
 
-        <Card className="shadow-md card-print">
+        <Card className="shadow-md"> {/* Removed card-print for now */}
           <CardHeader>
             <CardTitle className="card-title-print">Trip Log Overview</CardTitle>
             <CardDescription className="card-description-print">View, filter, and analyze all submitted trips. Trips pending completion can be edited.</CardDescription>
@@ -383,72 +383,106 @@ export default function ManagerDashboardPage() {
                 <p className="ml-2">Loading trips...</p>
               </div>
             ) : filteredTrips.length === 0 && !error ? (
-              <p className="text-center text-muted-foreground py-10">No trips match the current filters, or no trips submitted yet.</p>
+              <div className="text-center py-10">
+                <Route className="mx-auto h-12 w-12 text-muted-foreground" />
+                <h3 className="mt-2 text-lg font-medium">No Trips Found</h3>
+                <p className="mt-1 text-sm text-muted-foreground">No trips match the current filters, or no trips submitted yet.</p>
+              </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table className="table-print">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Date</TableHead>
-                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Driver</TableHead>
-                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">From</TableHead>
-                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">To</TableHead>
-                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Time (Start/End)</TableHead>
-                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Duration</TableHead>
-                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Mileage (Start/End)</TableHead>
-                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Distance</TableHead>
-                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Details</TableHead>
-                      <TableHead className="px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Status</TableHead>
-                      <TableHead className="text-right no-print px-2 py-3 md:px-3 lg:px-4 whitespace-nowrap">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredTrips.map((trip) => {
-                      const status = getTripStatusBadge(trip);
-                      const distance = trip.endMileage != null && trip.startMileage != null ? (trip.endMileage - trip.startMileage) : null;
-                      return (
-                        <TableRow key={trip.id}>
-                          <TableCell className="p-2 md:p-3 lg:p-4 whitespace-nowrap">
-                            {format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : new Date(trip.tripDate), 'MMM dd, yyyy')}
-                          </TableCell>
-                          <TableCell className="p-2 md:p-3 lg:p-4 min-w-[120px] max-w-[180px] truncate">{trip.driverName}</TableCell>
-                          <TableCell className="p-2 md:p-3 lg:p-4 min-w-[100px] max-w-[150px] truncate">{trip.fromLocation}</TableCell>
-                          <TableCell className="p-2 md:p-3 lg:p-4 min-w-[100px] max-w-[150px] truncate">{trip.toLocation || 'N/A'}</TableCell>
-                          <TableCell className="p-2 md:p-3 lg:p-4">
-                            <div className="flex flex-col lg:flex-row lg:items-center text-xs sm:text-sm">
-                              <span>{trip.startTime}</span>
-                              <span className="hidden lg:inline mx-1 text-muted-foreground">/</span>
-                              <span className="text-muted-foreground lg:text-current">{trip.endTime || 'N/A'}</span>
+              <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+                {filteredTrips.map((trip) => {
+                  const status = getTripStatusBadge(trip);
+                  const distance = trip.endMileage != null && trip.startMileage != null ? (trip.endMileage - trip.startMileage) : null;
+                  const duration = calculateDuration(trip.startTime, trip.endTime, trip.tripDate);
+
+                  return (
+                    <Card key={trip.id} className="flex flex-col shadow-md hover:shadow-lg transition-shadow duration-200">
+                      <CardHeader>
+                        <div className="flex justify-between items-start gap-2">
+                          <div>
+                            <CardTitle className="text-xl">
+                              {format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : trip.tripDate, 'MMM dd, yyyy')}
+                            </CardTitle>
+                            <CardDescription>Driver: {trip.driverName}</CardDescription>
+                          </div>
+                          <Badge variant={status.variant as any} className="whitespace-nowrap badge-print">{status.text}</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-3 flex-grow">
+                        <div className="flex items-start space-x-2">
+                          <MapPin className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                          <div>
+                            <h4 className="text-sm font-semibold">Route</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {trip.fromLocation || 'N/A'} <span className="font-semibold text-primary mx-1">&rarr;</span> {trip.toLocation || 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm border-t pt-3">
+                            <div className="flex items-center space-x-2">
+                                <Clock className="h-4 w-4 text-muted-foreground" />
+                                <div>
+                                    <h4 className="font-medium">Start Time</h4>
+                                    <p className="text-muted-foreground">{trip.startTime}</p>
+                                </div>
                             </div>
-                          </TableCell>
-                          <TableCell className="p-2 md:p-3 lg:p-4 whitespace-nowrap">{calculateDuration(trip.startTime, trip.endTime, trip.tripDate)}</TableCell>
-                          <TableCell className="p-2 md:p-3 lg:p-4">
-                            <div className="flex flex-col lg:flex-row lg:items-center text-xs sm:text-sm">
-                              <span>{trip.startMileage}</span>
-                              <span className="hidden lg:inline mx-1 text-muted-foreground">/</span>
-                              <span className="text-muted-foreground lg:text-current">{trip.endMileage != null ? trip.endMileage : 'N/A'}</span>
+                            <div className="flex items-center space-x-2">
+                                <Clock className="h-4 w-4 text-muted-foreground" />
+                                <div>
+                                    <h4 className="font-medium">End Time</h4>
+                                    <p className="text-muted-foreground">{trip.endTime || 'N/A'}</p>
+                                </div>
                             </div>
-                          </TableCell>
-                          <TableCell className="p-2 md:p-3 lg:p-4 whitespace-nowrap">{distance != null ? `${distance} miles` : 'N/A'}</TableCell>
-                          <TableCell className="p-2 md:p-3 lg:p-4 max-w-[100px] md:max-w-[150px] lg:max-w-[180px] truncate" title={trip.tripDetails}>{trip.tripDetails || 'N/A'}</TableCell>
-                          <TableCell className="p-2 md:p-3 lg:p-4">
-                            <Badge variant={status.variant as any} className="badge-print">{status.text}</Badge>
-                          </TableCell>
-                          <TableCell className="p-2 md:p-3 lg:p-4 text-right space-x-0 sm:space-x-1 no-print">
-                            <Button variant="ghost" size="icon" onClick={() => handleSummarize(trip)} disabled={isSummarizing && currentTripForSummary?.id === trip.id} className="p-1 h-8 w-8" title="Summarize Trip Details">
-                              {isSummarizing && currentTripForSummary?.id === trip.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
-                              <span className="sr-only">Summarize</span>
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleEditTrip(trip)} className="p-1 h-8 w-8" title="Edit Trip">
-                              <Pencil className="h-4 w-4" />
-                              <span className="sr-only">Edit</span>
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                            <div className="flex items-center space-x-2">
+                                <Gauge className="h-4 w-4 text-muted-foreground" />
+                                <div>
+                                    <h4 className="font-medium">Start Mileage</h4>
+                                    <p className="text-muted-foreground">{trip.startMileage}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <Gauge className="h-4 w-4 text-muted-foreground" />
+                                <div>
+                                    <h4 className="font-medium">End Mileage</h4>
+                                    <p className="text-muted-foreground">{trip.endMileage != null ? trip.endMileage : 'N/A'}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-x-4 text-sm border-t pt-3">
+                            <div>
+                                <h4 className="font-medium">Duration</h4>
+                                <p className="text-muted-foreground">{duration}</p>
+                            </div>
+                            <div>
+                                <h4 className="font-medium">Distance</h4>
+                                <p className="text-muted-foreground">{distance != null ? `${distance} miles` : 'N/A'}</p>
+                            </div>
+                        </div>
+
+                        {trip.tripDetails && (
+                          <div className="pt-2 border-t">
+                            <h4 className="text-sm font-semibold">Details</h4>
+                            <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/50 p-2 rounded-md max-h-24 overflow-y-auto">
+                              {trip.tripDetails}
+                            </p>
+                          </div>
+                        )}
+                      </CardContent>
+                      <CardFooter className="border-t pt-4 space-x-2 no-print">
+                        <Button variant="outline" size="sm" onClick={() => handleSummarize(trip)} disabled={isSummarizing && currentTripForSummary?.id === trip.id} className="flex-1">
+                          {isSummarizing && currentTripForSummary?.id === trip.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
+                          Summarize
+                        </Button>
+                        <Button variant="default" size="sm" onClick={() => handleEditTrip(trip)} className="flex-1">
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Edit Trip
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -509,3 +543,4 @@ export default function ManagerDashboardPage() {
     </AppLayout>
   );
 }
+
