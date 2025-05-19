@@ -10,13 +10,14 @@ import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { summarizeTripDetails, type SummarizeTripDetailsInput } from '@/ai/flows/summarize-trip-details';
+import { getMaintenanceSuggestion, type MaintenanceReminderInput } from '@/ai/flows/maintenance-reminder-flow.ts';
 import { useToast } from '@/hooks/use-toast';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import type { Trip, TripFormData } from '@/lib/types';
 import { db } from '@/config/firebase';
 import { collection, query, getDocs, orderBy, where, Timestamp } from 'firebase/firestore';
 import { format, parseISO } from 'date-fns';
-import { CalendarIcon, Loader2, SearchIcon, Brain, Pencil } from 'lucide-react';
+import { CalendarIcon, Loader2, SearchIcon, Brain, Pencil, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter} from "@/components/ui/dialog";
@@ -48,6 +49,9 @@ export default function ManagerDashboardPage() {
   const [currentTripToEdit, setCurrentTripToEdit] = useState<Trip | null>(null);
   const [isSavingTrip, setIsSavingTrip] = useState(false);
 
+  const [maintenanceSuggestion, setMaintenanceSuggestion] = useState<string | null>(null);
+  const [isFetchingSuggestion, setIsFetchingSuggestion] = useState(false);
+
   const fetchAllTrips = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -60,7 +64,6 @@ export default function ManagerDashboardPage() {
         return { 
           id: doc.id, 
           ...data,
-          // Ensure tripDate is a Date object for consistency in the app
           tripDate: data.tripDate instanceof Timestamp ? data.tripDate.toDate() : new Date(data.tripDate) 
         } as Trip;
       });
@@ -88,13 +91,48 @@ export default function ManagerDashboardPage() {
     if (filters.tripDate) {
       const selectedDateStr = format(filters.tripDate, 'yyyy-MM-dd');
       tempTrips = tempTrips.filter(trip => {
-        // Ensure trip.tripDate is handled as a Date object
         const tripDateObj = trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : new Date(trip.tripDate);
         return format(tripDateObj, 'yyyy-MM-dd') === selectedDateStr;
       });
     }
     setFilteredTrips(tempTrips);
   }, [filters, allTrips]);
+
+  useEffect(() => {
+    const fetchSuggestion = async () => {
+      if (filteredTrips.length > 0) {
+        setIsFetchingSuggestion(true);
+        setMaintenanceSuggestion(null); 
+        try {
+          const relevantTripDetails = filteredTrips
+            .slice(0, 30) // Analyze up to 30 most recent filtered trips
+            .map(trip => trip.tripDetails)
+            .filter((details): details is string => typeof details === 'string' && details.trim() !== '');
+
+          if (relevantTripDetails.length > 0) {
+            const input: MaintenanceReminderInput = { tripDetailsList: relevantTripDetails };
+            const result = await getMaintenanceSuggestion(input);
+            if (result.suggestion) { // Check if suggestion is not null or empty
+               setMaintenanceSuggestion(result.suggestion);
+            } else {
+              setMaintenanceSuggestion(null);
+            }
+          } else {
+            setMaintenanceSuggestion(null); 
+          }
+        } catch (err) {
+          console.error("Error fetching maintenance suggestion:", err);
+          setMaintenanceSuggestion(null);
+        } finally {
+          setIsFetchingSuggestion(false);
+        }
+      } else {
+        setMaintenanceSuggestion(null); 
+      }
+    };
+    fetchSuggestion();
+  }, [filteredTrips]);
+
 
   const handleFilterChange = (key: keyof Filters, value: string | Date | null) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -167,7 +205,7 @@ export default function ManagerDashboardPage() {
   }, [filteredTrips]);
 
   const calculateDuration = (startTime: string, endTime: string, tripDate: Date | Timestamp): string => {
-    const date = tripDate instanceof Timestamp ? tripDate.toDate() : new Date(tripDate); // Ensure date is a Date object
+    const date = tripDate instanceof Timestamp ? tripDate.toDate() : new Date(tripDate);
     const startDateTime = new Date(date);
     const [startHours, startMinutes] = startTime.split(':').map(Number);
     startDateTime.setHours(startHours, startMinutes, 0, 0);
@@ -198,13 +236,42 @@ export default function ManagerDashboardPage() {
           </Alert>
         )}
 
-        <Card>
+        {(isFetchingSuggestion || maintenanceSuggestion) && (
+          <Card className="mb-6 shadow-md">
+            <CardHeader>
+              <CardTitle className="flex items-center text-lg">
+                <AlertCircle className="mr-2 h-5 w-5 text-primary" />
+                Smart Suggestions
+              </CardTitle>
+              <CardDescription>AI-powered insights based on recent trip data.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isFetchingSuggestion && !maintenanceSuggestion && (
+                <div className="flex items-center">
+                  <Loader2 className="h-5 w-5 animate-spin mr-2 text-primary" />
+                  <span>Analyzing trip data for suggestions...</span>
+                </div>
+              )}
+              {!isFetchingSuggestion && maintenanceSuggestion && (
+                <p className="text-sm">{maintenanceSuggestion}</p>
+              )}
+              {!isFetchingSuggestion && !maintenanceSuggestion && filteredTrips.length > 0 && (
+                 <p className="text-sm text-muted-foreground">No specific cleaning or fuel reminders from recent trips.</p>
+              )}
+              {!isFetchingSuggestion && !maintenanceSuggestion && filteredTrips.length === 0 && (
+                 <p className="text-sm text-muted-foreground">Not enough trip data to generate suggestions at the moment.</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <Card className="shadow-md">
           <CardHeader>
             <CardTitle>Trip Log Overview</CardTitle>
             <CardDescription>View, filter, and analyze all submitted trips.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-muted/30">
               <div>
                 <p className="text-sm text-muted-foreground">Total Trips</p>
                 <p className="text-2xl font-semibold">{aggregateSummary.totalTrips}</p>
@@ -219,7 +286,7 @@ export default function ManagerDashboardPage() {
               </div>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-4 items-center">
+            <div className="flex flex-col md:flex-row gap-4 items-center pt-4">
               <Select value={filters.driverName} onValueChange={(value) => handleFilterChange('driverName', value)}>
                 <SelectTrigger className="w-full md:w-[200px]">
                   <SelectValue placeholder="Filter by driver..." />
@@ -288,11 +355,11 @@ export default function ManagerDashboardPage() {
                         <TableCell>{trip.endMileage - trip.startMileage} miles</TableCell>
                         <TableCell className="max-w-xs truncate" title={trip.tripDetails}>{trip.tripDetails || 'N/A'}</TableCell>
                         <TableCell className="text-right space-x-1">
-                          <Button variant="ghost" size="icon" onClick={() => handleSummarize(trip)} disabled={isSummarizing && currentTripForSummary?.id === trip.id} className="p-1 h-8 w-8">
+                          <Button variant="ghost" size="icon" onClick={() => handleSummarize(trip)} disabled={isSummarizing && currentTripForSummary?.id === trip.id} className="p-1 h-8 w-8" title="Summarize Trip Details">
                             {isSummarizing && currentTripForSummary?.id === trip.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
                             <span className="sr-only">Summarize</span>
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleEditTrip(trip)} className="p-1 h-8 w-8">
+                          <Button variant="ghost" size="icon" onClick={() => handleEditTrip(trip)} className="p-1 h-8 w-8" title="Edit Trip">
                             <Pencil className="h-4 w-4" />
                             <span className="sr-only">Edit</span>
                           </Button>
@@ -332,12 +399,12 @@ export default function ManagerDashboardPage() {
       </Dialog>
 
       <Dialog open={isEditModalOpen} onOpenChange={(isOpen) => {
-        if (!isOpen && !isSavingTrip) { // Don't clear if still saving
+        if (!isOpen && !isSavingTrip) { 
           setCurrentTripToEdit(null); 
         }
         setIsEditModalOpen(isOpen);
       }}>
-        <DialogContent className="sm:max-w-[625px]"> {/* Increased width for form */}
+        <DialogContent className="sm:max-w-[625px]"> 
           <DialogHeader>
             <DialogTitle>Edit Trip</DialogTitle>
             <DialogDescription>
