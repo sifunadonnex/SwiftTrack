@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -10,11 +11,11 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { auth, functions } from '@/config/firebase'; // Import functions
+import { auth, db } from '@/config/firebase'; // Import db
 import AuthLayout from '@/components/auth/auth-layout';
 import React from 'react';
 import { Loader2 } from 'lucide-react';
-import { httpsCallable } from 'firebase/functions'; // Import httpsCallable
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore'; // Import Firestore functions
 
 const signupSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
@@ -44,12 +45,19 @@ export default function SignupPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       await updateProfile(userCredential.user, { displayName: values.fullName });
 
-      // Call Firebase Function to set custom role
-      const setRole = httpsCallable(functions, 'setCustomUserRole');
-      await setRole({ userId: userCredential.user.uid, role: 'employee' });
+      // Create user document in Firestore
+      const userDocRef = doc(db, 'users', userCredential.user.uid);
+      await setDoc(userDocRef, {
+        uid: userCredential.user.uid,
+        email: values.email,
+        displayName: values.fullName,
+        role: 'employee', // Default role for new users
+        createdAt: serverTimestamp(),
+        photoURL: userCredential.user.photoURL || null,
+      });
       
-      // Manually trigger token refresh to get new custom claims
-      await userCredential.user.getIdToken(true);
+      // No longer need to manually trigger token refresh for custom claims
+      // await userCredential.user.getIdToken(true); 
 
       toast({
         title: "Account Created",
@@ -61,8 +69,8 @@ export default function SignupPage() {
       let errorMessage = "An unexpected error occurred. Please try again.";
       if (error.code === "auth/email-already-in-use") {
         errorMessage = "This email is already registered. Please try logging in.";
-      } else if (error.message && error.message.includes('setCustomUserRole')) {
-        errorMessage = "Account created, but failed to set user role. Please contact support.";
+      } else if (error.message && error.message.includes('setDoc')) {
+        errorMessage = "Account created, but failed to save user details. Please contact support.";
       }
       toast({
         title: "Signup Failed",
