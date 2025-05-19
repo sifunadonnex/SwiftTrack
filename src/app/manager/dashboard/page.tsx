@@ -16,7 +16,8 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import type { Trip, TripFormData } from '@/lib/types';
 import { db } from '@/config/firebase';
 import { collection, query, getDocs, orderBy, where, Timestamp } from 'firebase/firestore';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import type { DateRange } from 'react-day-picker';
 import { CalendarIcon, Loader2, SearchIcon, Brain, Pencil, AlertCircle, Printer } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from '@/components/ui/badge';
@@ -28,7 +29,7 @@ import { updateTrip } from '@/lib/trip.actions';
 
 interface Filters {
   driverName: string;
-  tripDate: Date | null;
+  dateRange: DateRange | undefined;
 }
 
 export default function ManagerDashboardPage() {
@@ -39,7 +40,7 @@ export default function ManagerDashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<Filters>({ driverName: 'all', tripDate: null });
+  const [filters, setFilters] = useState<Filters>({ driverName: 'all', dateRange: undefined });
   
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [currentTripForSummary, setCurrentTripForSummary] = useState<Trip | null>(null);
@@ -90,11 +91,15 @@ export default function ManagerDashboardPage() {
     if (filters.driverName && filters.driverName !== 'all') {
       tempTrips = tempTrips.filter(trip => trip.driverName === filters.driverName);
     }
-    if (filters.tripDate) {
-      const selectedDateStr = format(filters.tripDate, 'yyyy-MM-dd');
+    if (filters.dateRange?.from) {
+      const rangeStart = startOfDay(filters.dateRange.from);
+      // If only 'from' is selected, treat 'to' as the end of that same day.
+      // Otherwise, use the selected 'to' date.
+      const rangeEnd = filters.dateRange.to ? endOfDay(filters.dateRange.to) : endOfDay(filters.dateRange.from);
+
       tempTrips = tempTrips.filter(trip => {
         const tripDateObj = trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : new Date(trip.tripDate);
-        return format(tripDateObj, 'yyyy-MM-dd') === selectedDateStr;
+        return isWithinInterval(tripDateObj, { start: rangeStart, end: rangeEnd });
       });
     }
     setFilteredTrips(tempTrips);
@@ -136,7 +141,7 @@ export default function ManagerDashboardPage() {
   }, [filteredTrips]);
 
 
-  const handleFilterChange = (key: keyof Filters, value: string | Date | null) => {
+  const handleFilterChange = (key: keyof Filters, value: string | DateRange | undefined) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
@@ -204,7 +209,7 @@ export default function ManagerDashboardPage() {
   const aggregateSummary = useMemo(() => {
     if (filteredTrips.length === 0) return { totalTrips: 0, totalDistance: 0, averageDistance: 0 };
     const completedTrips = filteredTrips.filter(trip => trip.endMileage != null && trip.startMileage != null);
-    const totalTrips = filteredTrips.length; // Show total trips regardless of completion for this stat
+    const totalTrips = filteredTrips.length; 
     const totalDistance = completedTrips.reduce((sum, trip) => sum + (trip.endMileage! - trip.startMileage!), 0);
     const averageDistance = completedTrips.length > 0 ? parseFloat((totalDistance / completedTrips.length).toFixed(1)) : 0;
     return { totalTrips, totalDistance, averageDistance };
@@ -320,24 +325,37 @@ export default function ManagerDashboardPage() {
                   <Button
                     variant={"outline"}
                     className={cn(
-                      "w-full md:w-[240px] justify-start text-left font-normal",
-                      !filters.tripDate && "text-muted-foreground"
+                      "w-full md:w-auto min-w-[240px] justify-start text-left font-normal",
+                      !filters.dateRange && "text-muted-foreground"
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {filters.tripDate ? format(filters.tripDate, "PPP") : <span>Filter by date...</span>}
+                    {filters.dateRange?.from ? (
+                      filters.dateRange.to ? (
+                        <>
+                          {format(filters.dateRange.from, "LLL dd, y")} - {" "}
+                          {format(filters.dateRange.to, "LLL dd, y")}
+                        </>
+                      ) : (
+                        format(filters.dateRange.from, "LLL dd, y")
+                      )
+                    ) : (
+                      <span>Filter by date range...</span>
+                    )}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
-                    mode="single"
-                    selected={filters.tripDate}
-                    onSelect={(date) => handleFilterChange('tripDate', date || null)}
                     initialFocus
+                    mode="range"
+                    defaultMonth={filters.dateRange?.from}
+                    selected={filters.dateRange}
+                    onSelect={(range) => handleFilterChange('dateRange', range)}
+                    numberOfMonths={2}
                   />
                 </PopoverContent>
               </Popover>
-              <Button variant="outline" onClick={() => setFilters({ driverName: 'all', tripDate: null })}>Clear Filters</Button>
+              <Button variant="outline" onClick={() => setFilters({ driverName: 'all', dateRange: undefined })}>Clear Filters</Button>
               <Button onClick={handlePrint} className="ml-auto">
                 <Printer className="mr-2 h-4 w-4" />
                 Print Report
@@ -462,3 +480,6 @@ export default function ManagerDashboardPage() {
     </AppLayout>
   );
 }
+
+
+    
