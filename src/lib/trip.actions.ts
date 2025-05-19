@@ -1,19 +1,22 @@
+
 "use server";
 
-import { auth, db } from '@/config/firebase';
+import { db } from '@/config/firebase'; // Removed auth import as auth.currentUser won't work here
 import { collection, addDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
 import type { TripFormData } from './types';
 import { revalidatePath } from 'next/cache';
 
-export async function addTrip(formData: TripFormData): Promise<{ success: boolean; tripId?: string; error?: string }> {
-  const user = auth.currentUser;
-  if (!user) {
-    return { success: false, error: 'User not authenticated.' };
+export async function addTrip(
+  userId: string, // Added userId parameter
+  formData: TripFormData
+): Promise<{ success: boolean; tripId?: string; error?: string }> {
+  if (!userId) { // Check if userId is provided
+    return { success: false, error: 'User ID not provided.' };
   }
 
   try {
     const tripData = {
-      userId: user.uid,
+      userId: userId, // Use the passed userId
       driverName: formData.driverName,
       tripDate: Timestamp.fromDate(new Date(formData.tripDate)),
       startTime: formData.startTime,
@@ -29,10 +32,7 @@ export async function addTrip(formData: TripFormData): Promise<{ success: boolea
     
     // Revalidate paths to update cached data
     revalidatePath('/employee/dashboard');
-    if (user.photoURL === 'manager') { // Assuming role is stored in photoURL or use custom claims to check
-         revalidatePath('/manager/dashboard');
-    }
-
+    revalidatePath('/manager/dashboard'); // Revalidate manager dashboard as it lists all trips
 
     return { success: true, tripId: docRef.id };
   } catch (error: any) {

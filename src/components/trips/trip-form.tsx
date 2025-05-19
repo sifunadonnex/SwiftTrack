@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -73,20 +74,22 @@ export default function TripForm() {
   }, [user, form]);
 
   async function onSubmit(values: z.infer<typeof tripFormSchema>) {
-    if (!user) {
+    if (!user || !user.uid) { // Ensure user and user.uid are available
       toast({ title: "Error", description: "You must be logged in to submit a trip.", variant: "destructive" });
+      setIsSubmitting(false); // Also set submitting to false here
       return;
     }
     setIsSubmitting(true);
     
     const tripData: TripFormData = {
       ...values,
-      startMileage: values.startMileage, // Keep as string for action
-      endMileage: values.endMileage,   // Keep as string for action
+      startMileage: values.startMileage, 
+      endMileage: values.endMileage,   
     };
 
     try {
-      const result = await addTrip(tripData);
+      // Pass user.uid as the first argument
+      const result = await addTrip(user.uid, tripData); 
       if (result.success && result.tripId) {
         toast({
           title: "Trip Submitted!",
