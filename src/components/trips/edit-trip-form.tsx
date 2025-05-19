@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import React, { useState, useEffect } from 'react';
 import type { Trip, TripFormData } from "@/lib/types";
-import type { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore"; // Added import
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/; // HH:MM format
 
