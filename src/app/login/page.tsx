@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -13,7 +14,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/config/firebase';
 import AuthLayout from '@/components/auth/auth-layout';
 import { Loader2 } from 'lucide-react';
-import React from 'react';
+import React, { Suspense } from 'react'; // Import Suspense
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -22,7 +23,7 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-export default function LoginPage() {
+function LoginPageContent() {
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -107,5 +108,27 @@ export default function LoginPage() {
         </Link>
       </p>
     </AuthLayout>
+  );
+}
+
+function LoginLoadingFallback() {
+  return (
+    <AuthLayout
+        title="Welcome Back!"
+        description="Sign in to access your SwiftTrack dashboard."
+    >
+        <div className="flex justify-center items-center py-10">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-2 text-muted-foreground">Loading login options...</p>
+        </div>
+    </AuthLayout>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginLoadingFallback />}>
+      <LoginPageContent />
+    </Suspense>
   );
 }
