@@ -1,3 +1,4 @@
+
 "use client";
 
 import AppLayout from '@/components/layout/app-layout';
@@ -19,6 +20,7 @@ import { CalendarIcon, Loader2, SearchIcon, Brain } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils"; // Added this import
 
 interface Filters {
   driverName: string;
@@ -283,3 +285,5 @@ export default function ManagerDashboardPage() {
     </AppLayout>
   );
 }
+
+    
