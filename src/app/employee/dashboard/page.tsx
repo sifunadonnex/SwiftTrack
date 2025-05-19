@@ -254,7 +254,7 @@ export default function EmployeeDashboardPage() {
         }
         setIsEditModalOpen(isOpen);
       }}>
-        <DialogContent className="w-[95vw] sm:max-w-lg">
+        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Complete Trip Details</DialogTitle>
             <DialogDescription>
