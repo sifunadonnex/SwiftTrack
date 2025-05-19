@@ -2,15 +2,14 @@
 "use client";
 
 import AppLayout from '@/components/layout/app-layout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuthClient } from '@/hooks/use-auth-client';
 import { db } from '@/config/firebase';
 import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
 import type { Trip, TripFormData } from '@/lib/types';
 import React, { useEffect, useState, useCallback } from 'react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from 'date-fns';
-import { Loader2, Pencil } from 'lucide-react';
+import { Loader2, Pencil, MapPin, Clock, Gauge } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -74,7 +73,7 @@ export default function EmployeeDashboardPage() {
     const [endHours, endMinutes] = endTime.split(':').map(Number);
     endDateTime.setHours(endHours, endMinutes, 0, 0);
 
-    if (endDateTime <= startDateTime) return "N/A"; // Should not happen with validation
+    if (endDateTime <= startDateTime) return "N/A"; 
 
     let diffMs = endDateTime.getTime() - startDateTime.getTime();
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -127,7 +126,10 @@ export default function EmployeeDashboardPage() {
   return (
     <AppLayout requiredRole={['employee', 'manager']}>
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold tracking-tight">My Trips</h1>
+        <header className="mb-6">
+          <h1 className="text-3xl font-bold tracking-tight">My Trips</h1>
+          <p className="text-muted-foreground">A log of all trips you have submitted. You can complete pending trips using the button on each card.</p>
+        </header>
 
         {error && (
           <Alert variant="destructive">
@@ -136,70 +138,114 @@ export default function EmployeeDashboardPage() {
           </Alert>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Your Trip History</CardTitle>
-            <CardDescription>A log of all trips you have submitted. You can complete pending trips by clicking the edit icon.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex justify-center items-center py-10">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-2">Loading your trips...</p>
-              </div>
-            ) : trips.length === 0 && !error ? (
-              <p className="text-center text-muted-foreground py-10">You haven&apos;t submitted any trips yet.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Driver</TableHead>
-                      <TableHead>From</TableHead>
-                      <TableHead>To</TableHead>
-                      <TableHead>Time (Start/End)</TableHead>
-                      <TableHead>Duration</TableHead>
-                      <TableHead>Mileage (Start/End)</TableHead>
-                      <TableHead>Distance</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {trips.map((trip) => {
-                      const status = getTripStatus(trip);
-                      const isPending = status.text === "Pending Completion";
-                      return (
-                        <TableRow key={trip.id}>
-                          <TableCell>{format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : trip.tripDate, 'MMM dd, yyyy')}</TableCell>
-                          <TableCell>{trip.driverName}</TableCell>
-                          <TableCell>{trip.fromLocation}</TableCell>
-                          <TableCell>{trip.toLocation || 'N/A'}</TableCell>
-                          <TableCell>{trip.startTime} / {trip.endTime || 'N/A'}</TableCell>
-                          <TableCell>{calculateDuration(trip.startTime, trip.endTime, trip.tripDate)}</TableCell>
-                          <TableCell>{trip.startMileage} / {trip.endMileage != null ? trip.endMileage : 'N/A'}</TableCell>
-                          <TableCell>{trip.endMileage != null && trip.startMileage != null ? (trip.endMileage - trip.startMileage) + ' miles' : 'N/A'}</TableCell>
-                          <TableCell>
-                            <Badge variant={status.variant as any}>{status.text}</Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {isPending && (
-                              <Button variant="ghost" size="icon" onClick={() => handleEditTrip(trip)} className="p-1 h-8 w-8" title="Complete Trip Details">
-                                <Pencil className="h-4 w-4" />
-                                <span className="sr-only">Edit</span>
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {isLoading ? (
+          <div className="flex justify-center items-center py-10">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-2">Loading your trips...</p>
+          </div>
+        ) : trips.length === 0 && !error ? (
+          <div className="text-center py-10">
+            <MapPin className="mx-auto h-12 w-12 text-muted-foreground" />
+            <h3 className="mt-2 text-lg font-medium">No Trips Yet</h3>
+            <p className="mt-1 text-sm text-muted-foreground">You haven&apos;t submitted any trips.</p>
+            <Button asChild className="mt-4">
+              <a href="/employee/submit-trip">Submit Your First Trip</a>
+            </Button>
+          </div>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+            {trips.map((trip) => {
+              const status = getTripStatus(trip);
+              const isPending = status.text === "Pending Completion";
+              const distance = trip.endMileage != null && trip.startMileage != null ? (trip.endMileage - trip.startMileage) : null;
+
+              return (
+                <Card key={trip.id} className="flex flex-col shadow-md hover:shadow-lg transition-shadow duration-200">
+                  <CardHeader>
+                    <div className="flex justify-between items-start gap-2">
+                      <div>
+                        <CardTitle className="text-xl">
+                          {format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : trip.tripDate, 'MMM dd, yyyy')}
+                        </CardTitle>
+                        <CardDescription>Driver: {trip.driverName}</CardDescription>
+                      </div>
+                      <Badge variant={status.variant as any} className="whitespace-nowrap">{status.text}</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4 flex-grow">
+                    <div className="flex items-start space-x-2">
+                      <MapPin className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h4 className="text-sm font-semibold">Route</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {trip.fromLocation} <span className="font-semibold text-primary mx-1">&rarr;</span> {trip.toLocation || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm border-t border-b py-3">
+                      <div className="flex items-center space-x-2">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <h4 className="font-medium">Start Time</h4>
+                          <p className="text-muted-foreground">{trip.startTime}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <h4 className="font-medium">End Time</h4>
+                          <p className="text-muted-foreground">{trip.endTime || 'N/A'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Gauge className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <h4 className="font-medium">Start Mileage</h4>
+                          <p className="text-muted-foreground">{trip.startMileage}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Gauge className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <h4 className="font-medium">End Mileage</h4>
+                          <p className="text-muted-foreground">{trip.endMileage != null ? trip.endMileage : 'N/A'}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-x-4 text-sm">
+                         <div>
+                            <h4 className="font-medium">Duration</h4>
+                            <p className="text-muted-foreground">{calculateDuration(trip.startTime, trip.endTime, trip.tripDate)}</p>
+                        </div>
+                        <div>
+                            <h4 className="font-medium">Distance</h4>
+                            <p className="text-muted-foreground">{distance != null ? `${distance} miles` : 'N/A'}</p>
+                        </div>
+                    </div>
+
+                    {trip.tripDetails && (
+                      <div className="pt-2">
+                        <h4 className="text-sm font-semibold">Details</h4>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/50 p-2 rounded-md max-h-24 overflow-y-auto">
+                          {trip.tripDetails}
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                  {isPending && (
+                    <CardFooter className="border-t pt-4">
+                      <Button variant="default" size="sm" onClick={() => handleEditTrip(trip)} className="w-full">
+                        <Pencil className="mr-2 h-4 w-4" /> Complete Trip Details
+                      </Button>
+                    </CardFooter>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <Dialog open={isEditModalOpen} onOpenChange={(isOpen) => {
