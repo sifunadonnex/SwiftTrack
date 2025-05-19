@@ -88,3 +88,67 @@
     /* Default font family is set in layout.tsx via Geist Sans/Mono */
   }
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background-color: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact; /* Chrome, Safari */
+    print-color-adjust: exact; /* Firefox */
+  }
+  .print-container {
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .card-print {
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+    background-color: white !important;
+    padding: 10px !important;
+    margin-top: 0 !important;
+    page-break-inside: avoid;
+  }
+  .table-print {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  .table-print th, .table-print td {
+    border: 1px solid #666 !important;
+    padding: 5px !important;
+    color: black !important;
+    font-size: 10pt !important; /* Adjust for print readability */
+    word-break: break-word;
+  }
+  .table-print th {
+    background-color: #e0e0e0 !important; /* Light gray for table headers */
+    font-weight: bold;
+  }
+  .table-print tr:nth-child(even) {
+    background-color: #f9f9f9 !important; /* Optional: very light stripping for readability */
+  }
+  .badge-print {
+    border: 1px solid #666 !important;
+    color: black !important;
+    background-color: white !important;
+    padding: 1px 3px !important;
+    font-size: 0.75em !important;
+    border-radius: 4px !important;
+    display: inline-block; /* Ensure it flows with text */
+  }
+  h1, h2, h3, h4, h5, h6, p {
+    color: black !important; /* Ensure all text is black */
+  }
+  /* Ensure links are underlined but not colored for print */
+  a {
+    text-decoration: underline !important;
+    color: black !important;
+  }
+  /* Hide images unless explicitly marked for print */
+  img:not(.print-image) {
+    display: none !important;
+  }
+}

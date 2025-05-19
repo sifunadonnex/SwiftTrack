@@ -17,7 +17,7 @@ import type { Trip, TripFormData } from '@/lib/types';
 import { db } from '@/config/firebase';
 import { collection, query, getDocs, orderBy, where, Timestamp } from 'firebase/firestore';
 import { format, parseISO } from 'date-fns';
-import { CalendarIcon, Loader2, SearchIcon, Brain, Pencil, AlertCircle } from 'lucide-react';
+import { CalendarIcon, Loader2, SearchIcon, Brain, Pencil, AlertCircle, Printer } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter} from "@/components/ui/dialog";
@@ -197,6 +197,9 @@ export default function ManagerDashboardPage() {
     }
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
 
   const aggregateSummary = useMemo(() => {
     if (filteredTrips.length === 0) return { totalTrips: 0, totalDistance: 0, averageDistance: 0 };
@@ -243,14 +246,14 @@ export default function ManagerDashboardPage() {
         <h1 className="text-3xl font-bold tracking-tight">Manager Dashboard</h1>
 
         {error && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="no-print">
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
         {(isFetchingSuggestion || maintenanceSuggestion) && (
-          <Card className="mb-6 shadow-md">
+          <Card className="mb-6 shadow-md no-print">
             <CardHeader>
               <CardTitle className="flex items-center text-lg">
                 <AlertCircle className="mr-2 h-5 w-5 text-primary" />
@@ -278,7 +281,7 @@ export default function ManagerDashboardPage() {
           </Card>
         )}
 
-        <Card className="shadow-md">
+        <Card className="shadow-md card-print">
           <CardHeader>
             <CardTitle>Trip Log Overview</CardTitle>
             <CardDescription>View, filter, and analyze all submitted trips. Trips pending completion can be edited.</CardDescription>
@@ -299,7 +302,7 @@ export default function ManagerDashboardPage() {
               </div>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-4 items-center pt-4">
+            <div className="flex flex-col md:flex-row gap-4 items-center pt-4 no-print">
               <Select value={filters.driverName} onValueChange={(value) => handleFilterChange('driverName', value)}>
                 <SelectTrigger className="w-full md:w-[200px]">
                   <SelectValue placeholder="Filter by driver..." />
@@ -335,6 +338,10 @@ export default function ManagerDashboardPage() {
                 </PopoverContent>
               </Popover>
               <Button variant="outline" onClick={() => setFilters({ driverName: 'all', tripDate: null })}>Clear Filters</Button>
+              <Button onClick={handlePrint} className="ml-auto">
+                <Printer className="mr-2 h-4 w-4" />
+                Print Report
+              </Button>
             </div>
 
             {isLoading ? (
@@ -346,7 +353,7 @@ export default function ManagerDashboardPage() {
               <p className="text-center text-muted-foreground py-10">No trips match the current filters, or no trips submitted yet.</p>
             ) : (
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="table-print">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date</TableHead>
@@ -359,7 +366,7 @@ export default function ManagerDashboardPage() {
                       <TableHead>Distance</TableHead>
                       <TableHead>Details</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead className="text-right no-print">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -378,9 +385,9 @@ export default function ManagerDashboardPage() {
                           <TableCell>{distance != null ? `${distance} miles` : 'N/A'}</TableCell>
                           <TableCell className="max-w-[150px] truncate" title={trip.tripDetails}>{trip.tripDetails || 'N/A'}</TableCell>
                           <TableCell>
-                            <Badge variant={status.variant as any}>{status.text}</Badge>
+                            <Badge variant={status.variant as any} className="badge-print">{status.text}</Badge>
                           </TableCell>
-                          <TableCell className="text-right space-x-1">
+                          <TableCell className="text-right space-x-1 no-print">
                             <Button variant="ghost" size="icon" onClick={() => handleSummarize(trip)} disabled={isSummarizing && currentTripForSummary?.id === trip.id} className="p-1 h-8 w-8" title="Summarize Trip Details">
                               {isSummarizing && currentTripForSummary?.id === trip.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
                               <span className="sr-only">Summarize</span>
@@ -402,7 +409,7 @@ export default function ManagerDashboardPage() {
       </div>
 
       <Dialog open={isSummaryModalOpen} onOpenChange={setIsSummaryModalOpen}>
-        <DialogContent className="sm:max-w-[525px]">
+        <DialogContent className="sm:max-w-[525px] no-print">
           <DialogHeader>
             <DialogTitle>Trip Summary for {currentTripForSummary?.driverName} on {currentTripForSummary && format(currentTripForSummary.tripDate instanceof Timestamp ? currentTripForSummary.tripDate.toDate() : new Date(currentTripForSummary.tripDate), 'MMM dd, yyyy')}</DialogTitle>
             <DialogDescription>
@@ -431,7 +438,7 @@ export default function ManagerDashboardPage() {
         }
         setIsEditModalOpen(isOpen);
       }}>
-        <DialogContent className="sm:max-w-[625px]"> 
+        <DialogContent className="sm:max-w-[625px] no-print"> 
           <DialogHeader>
             <DialogTitle>Edit Trip</DialogTitle>
             <DialogDescription>

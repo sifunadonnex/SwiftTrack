@@ -1,3 +1,4 @@
+
 "use client";
 
 import type React from 'react';
@@ -60,7 +61,7 @@ export default function AppLayout({ children, requiredRole }: AppLayoutProps) {
   return (
     <ProtectedRoute requiredRole={requiredRole}>
       <SidebarProvider defaultOpen>
-        <Sidebar collapsible="icon" variant="sidebar" side="left">
+        <Sidebar collapsible="icon" variant="sidebar" side="left" className="no-print">
           <SidebarHeader className="p-4 justify-center">
              <Link href="/" className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
                 <Car className="h-8 w-8 text-primary" />
@@ -87,8 +88,8 @@ export default function AppLayout({ children, requiredRole }: AppLayoutProps) {
           </SidebarContent>
         </Sidebar>
 
-        <SidebarInset>
-          <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-md md:px-6">
+        <SidebarInset className="print-container">
+          <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-md md:px-6 no-print">
             <div className="md:hidden">
               <SidebarTrigger />
             </div>
