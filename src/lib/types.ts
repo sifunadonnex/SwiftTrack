@@ -14,6 +14,8 @@ export interface Trip {
   userId: string;
   driverName: string;
   tripDate: Date | Timestamp; // Store as Date, convert to/from Timestamp for Firestore
+  fromLocation: string;
+  toLocation?: string | null;
   startTime: string; // e.g., "09:00"
   endTime?: string | null; // e.g., "17:00", now optional
   startMileage: number;
@@ -26,6 +28,8 @@ export interface Trip {
 export interface TripFormData {
   tripDate: Date;
   driverName: string;
+  fromLocation: string;
+  toLocation?: string | null; // Initially string from form
   startTime: string;
   endTime?: string | null; // Initially string from form, now optional
   startMileage: string; // Initially string from form

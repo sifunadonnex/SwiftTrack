@@ -19,6 +19,8 @@ export async function addTrip(
       userId: userId, 
       driverName: formData.driverName,
       tripDate: Timestamp.fromDate(new Date(formData.tripDate)),
+      fromLocation: formData.fromLocation,
+      toLocation: (formData.toLocation && formData.toLocation.trim() !== "") ? formData.toLocation : null,
       startTime: formData.startTime,
       endTime: (formData.endTime && formData.endTime.trim() !== "") ? formData.endTime : null,
       startMileage: parseFloat(formData.startMileage),
@@ -66,6 +68,8 @@ export async function updateTrip(
     const tripDataToUpdate = {
       driverName: formData.driverName,
       tripDate: Timestamp.fromDate(tripDateValue),
+      fromLocation: formData.fromLocation,
+      toLocation: (formData.toLocation && formData.toLocation.trim() !== "") ? formData.toLocation : null,
       startTime: formData.startTime,
       endTime: (formData.endTime && formData.endTime.trim() !== "") ? formData.endTime : null,
       startMileage: parseFloat(formData.startMileage),

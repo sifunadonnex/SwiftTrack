@@ -34,8 +34,9 @@ export default function EmployeeDashboardPage() {
             return { 
               id: doc.id, 
               ...data,
-              // Ensure tripDate is a JS Date object for client-side consistency
-              tripDate: data.tripDate instanceof Timestamp ? data.tripDate.toDate() : new Date(data.tripDate) 
+              tripDate: data.tripDate instanceof Timestamp ? data.tripDate.toDate() : new Date(data.tripDate),
+              fromLocation: data.fromLocation || "N/A",
+              toLocation: data.toLocation || "N/A",
             } as Trip;
           });
           setTrips(userTrips);
@@ -105,37 +106,43 @@ export default function EmployeeDashboardPage() {
             ) : trips.length === 0 && !error ? (
               <p className="text-center text-muted-foreground py-10">You haven&apos;t submitted any trips yet.</p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Driver</TableHead>
-                    <TableHead>Time (Start/End)</TableHead>
-                    <TableHead>Duration</TableHead>
-                    <TableHead>Mileage (Start/End)</TableHead>
-                    <TableHead>Distance</TableHead>
-                    <TableHead className="text-right">Status</TableHead> 
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {trips.map((trip) => {
-                    const status = getTripStatus(trip);
-                    return (
-                      <TableRow key={trip.id}>
-                        <TableCell>{format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : trip.tripDate, 'MMM dd, yyyy')}</TableCell>
-                        <TableCell>{trip.driverName}</TableCell>
-                        <TableCell>{trip.startTime} / {trip.endTime || 'N/A'}</TableCell>
-                        <TableCell>{calculateDuration(trip.startTime, trip.endTime, trip.tripDate)}</TableCell>
-                        <TableCell>{trip.startMileage} / {trip.endMileage != null ? trip.endMileage : 'N/A'}</TableCell>
-                        <TableCell>{trip.endMileage != null && trip.startMileage != null ? (trip.endMileage - trip.startMileage) + ' miles' : 'N/A'}</TableCell>
-                        <TableCell className="text-right">
-                          <Badge variant={status.variant as any}>{status.text}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Driver</TableHead>
+                      <TableHead>From</TableHead>
+                      <TableHead>To</TableHead>
+                      <TableHead>Time (Start/End)</TableHead>
+                      <TableHead>Duration</TableHead>
+                      <TableHead>Mileage (Start/End)</TableHead>
+                      <TableHead>Distance</TableHead>
+                      <TableHead className="text-right">Status</TableHead> 
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {trips.map((trip) => {
+                      const status = getTripStatus(trip);
+                      return (
+                        <TableRow key={trip.id}>
+                          <TableCell>{format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : trip.tripDate, 'MMM dd, yyyy')}</TableCell>
+                          <TableCell>{trip.driverName}</TableCell>
+                          <TableCell>{trip.fromLocation}</TableCell>
+                          <TableCell>{trip.toLocation || 'N/A'}</TableCell>
+                          <TableCell>{trip.startTime} / {trip.endTime || 'N/A'}</TableCell>
+                          <TableCell>{calculateDuration(trip.startTime, trip.endTime, trip.tripDate)}</TableCell>
+                          <TableCell>{trip.startMileage} / {trip.endMileage != null ? trip.endMileage : 'N/A'}</TableCell>
+                          <TableCell>{trip.endMileage != null && trip.startMileage != null ? (trip.endMileage - trip.startMileage) + ' miles' : 'N/A'}</TableCell>
+                          <TableCell className="text-right">
+                            <Badge variant={status.variant as any}>{status.text}</Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

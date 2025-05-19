@@ -64,7 +64,9 @@ export default function ManagerDashboardPage() {
         return { 
           id: doc.id, 
           ...data,
-          tripDate: data.tripDate instanceof Timestamp ? data.tripDate.toDate() : new Date(data.tripDate) 
+          tripDate: data.tripDate instanceof Timestamp ? data.tripDate.toDate() : new Date(data.tripDate),
+          fromLocation: data.fromLocation || "N/A",
+          toLocation: data.toLocation || "N/A",
         } as Trip;
       });
       setAllTrips(tripsData);
@@ -349,6 +351,8 @@ export default function ManagerDashboardPage() {
                     <TableRow>
                       <TableHead>Date</TableHead>
                       <TableHead>Driver</TableHead>
+                      <TableHead>From</TableHead>
+                      <TableHead>To</TableHead>
                       <TableHead>Time (Start/End)</TableHead>
                       <TableHead>Duration</TableHead>
                        <TableHead>Mileage (Start/End)</TableHead>
@@ -366,6 +370,8 @@ export default function ManagerDashboardPage() {
                         <TableRow key={trip.id}>
                           <TableCell>{format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : new Date(trip.tripDate), 'MMM dd, yyyy')}</TableCell>
                           <TableCell>{trip.driverName}</TableCell>
+                          <TableCell>{trip.fromLocation}</TableCell>
+                          <TableCell>{trip.toLocation || 'N/A'}</TableCell>
                           <TableCell>{trip.startTime} / {trip.endTime || 'N/A'}</TableCell>
                           <TableCell>{calculateDuration(trip.startTime, trip.endTime, trip.tripDate)}</TableCell>
                           <TableCell>{trip.startMileage} / {trip.endMileage != null ? trip.endMileage : 'N/A'}</TableCell>

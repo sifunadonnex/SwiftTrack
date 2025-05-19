@@ -22,6 +22,8 @@ const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/; // HH:MM format
 const editTripFormSchema = z.object({
   tripDate: z.date({ required_error: "Trip date is required." }),
   driverName: z.string().min(2, { message: "Driver name must be at least 2 characters." }),
+  fromLocation: z.string().min(2, { message: "From location must be at least 2 characters." }),
+  toLocation: z.string().optional().or(z.literal('')),
   startTime: z.string().regex(timeRegex, { message: "Invalid start time format (HH:MM)." }),
   endTime: z.string().regex(timeRegex, { message: "Invalid end time format (HH:MM)." }).optional().or(z.literal('')),
   startMileage: z.string().refine(val => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, { message: "Start mileage must be a non-negative number." }),
@@ -75,10 +77,12 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
     defaultValues: {
       tripDate: getInitialDate(trip.tripDate),
       driverName: trip.driverName || "",
+      fromLocation: trip.fromLocation || "",
+      toLocation: trip.toLocation || "",
       startTime: trip.startTime || "",
-      endTime: trip.endTime || "", // Firestore null will become empty string
+      endTime: trip.endTime || "", 
       startMileage: trip.startMileage?.toString() || "0",
-      endMileage: trip.endMileage?.toString() || "", // Firestore null will become empty string
+      endMileage: trip.endMileage?.toString() || "", 
       tripDetails: trip.tripDetails || "",
     },
   });
@@ -87,6 +91,8 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
     form.reset({
         tripDate: getInitialDate(trip.tripDate),
         driverName: trip.driverName || "",
+        fromLocation: trip.fromLocation || "",
+        toLocation: trip.toLocation || "",
         startTime: trip.startTime || "",
         endTime: trip.endTime || "",
         startMileage: trip.startMileage?.toString() || "0",
@@ -99,9 +105,10 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
     if (!trip.id) return;
     const dataToSave: TripFormData = {
       ...values,
+      toLocation: values.toLocation || null,
       startMileage: values.startMileage,
-      endMileage: values.endMileage || null, // Pass null if empty
-      endTime: values.endTime || null, // Pass null if empty
+      endMileage: values.endMileage || null, 
+      endTime: values.endTime || null, 
     };
     await onSave(trip.id, dataToSave);
   }
@@ -153,6 +160,34 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
                 <FormLabel>Driver Name</FormLabel>
                 <FormControl>
                   <Input placeholder="e.g., John Doe" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="fromLocation"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>From Location</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Main Office" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="toLocation"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>To Location (Optional)</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Client Site A" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>

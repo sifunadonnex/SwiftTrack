@@ -25,6 +25,8 @@ const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/; // HH:MM format
 const tripFormSchema = z.object({
   tripDate: z.date({ required_error: "Trip date is required." }),
   driverName: z.string().min(2, { message: "Driver name must be at least 2 characters." }),
+  fromLocation: z.string().min(2, { message: "From location must be at least 2 characters." }),
+  toLocation: z.string().optional().or(z.literal('')),
   startTime: z.string().regex(timeRegex, { message: "Invalid start time format (HH:MM)." }),
   endTime: z.string().regex(timeRegex, { message: "Invalid end time format (HH:MM)." }).optional().or(z.literal('')),
   startMileage: z.string().refine(val => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, { message: "Start mileage must be a non-negative number." }),
@@ -66,6 +68,8 @@ export default function TripForm() {
     defaultValues: {
       tripDate: new Date(),
       driverName: user?.displayName || "",
+      fromLocation: "",
+      toLocation: "",
       startTime: "",
       endTime: "",
       startMileage: "",
@@ -90,7 +94,7 @@ export default function TripForm() {
     
     const tripData: TripFormData = {
       ...values,
-      // Ensure empty strings for optional fields are passed as such or converted to null by server action
+      toLocation: values.toLocation || null,
       endTime: values.endTime || null, 
       startMileage: values.startMileage, 
       endMileage: values.endMileage || null,   
@@ -106,6 +110,8 @@ export default function TripForm() {
         form.reset({
             tripDate: new Date(),
             driverName: user?.displayName || "",
+            fromLocation: "",
+            toLocation: "",
             startTime: "",
             endTime: "",
             startMileage: "",
@@ -181,6 +187,36 @@ export default function TripForm() {
             )}
           />
         </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormField
+              control={form.control}
+              name="fromLocation"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>From Location</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Main Office" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="toLocation"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>To Location (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Client Site A" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+        </div>
+
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <FormField
