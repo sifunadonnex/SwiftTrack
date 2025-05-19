@@ -11,16 +11,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { summarizeTripDetails, type SummarizeTripDetailsInput } from '@/ai/flows/summarize-trip-details';
 import { useToast } from '@/hooks/use-toast';
-import React, { useEffect, useState, useMemo } from 'react';
-import type { Trip } from '@/lib/types';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import type { Trip, TripFormData } from '@/lib/types';
 import { db } from '@/config/firebase';
 import { collection, query, getDocs, orderBy, where, Timestamp } from 'firebase/firestore';
 import { format, parseISO } from 'date-fns';
-import { CalendarIcon, Loader2, SearchIcon, Brain } from 'lucide-react';
+import { CalendarIcon, Loader2, SearchIcon, Brain, Pencil } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter} from "@/components/ui/dialog";
-import { cn } from "@/lib/utils"; // Added this import
+import { cn } from "@/lib/utils"; 
+import EditTripForm from '@/components/trips/edit-trip-form';
+import { updateTrip } from '@/lib/trip.actions';
+
 
 interface Filters {
   driverName: string;
@@ -41,32 +44,41 @@ export default function ManagerDashboardPage() {
   const [currentTripForSummary, setCurrentTripForSummary] = useState<Trip | null>(null);
   const [tripSummary, setTripSummary] = useState<string | null>(null);
 
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [currentTripToEdit, setCurrentTripToEdit] = useState<Trip | null>(null);
+  const [isSavingTrip, setIsSavingTrip] = useState(false);
+
+  const fetchAllTrips = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const tripsRef = collection(db, 'trips');
+      const q = query(tripsRef, orderBy('tripDate', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const tripsData = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return { 
+          id: doc.id, 
+          ...data,
+          // Ensure tripDate is a Date object for consistency in the app
+          tripDate: data.tripDate instanceof Timestamp ? data.tripDate.toDate() : new Date(data.tripDate) 
+        } as Trip;
+      });
+      setAllTrips(tripsData);
+      const uniqueDrivers = Array.from(new Set(tripsData.map(trip => trip.driverName)));
+      setDrivers(uniqueDrivers);
+    } catch (err) {
+      console.error("Error fetching all trips:", err);
+      setError("Failed to load trips. Please try again later.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
 
   useEffect(() => {
-    const fetchAllTrips = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const tripsRef = collection(db, 'trips');
-        const q = query(tripsRef, orderBy('tripDate', 'desc'));
-        const querySnapshot = await getDocs(q);
-        const tripsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Trip));
-        setAllTrips(tripsData);
-        setFilteredTrips(tripsData); // Initially show all trips
-
-        // Extract unique driver names for filter dropdown
-        const uniqueDrivers = Array.from(new Set(tripsData.map(trip => trip.driverName)));
-        setDrivers(uniqueDrivers);
-
-      } catch (err) {
-        console.error("Error fetching all trips:", err);
-        setError("Failed to load trips. Please try again later.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
     fetchAllTrips();
-  }, []);
+  }, [fetchAllTrips]);
   
   useEffect(() => {
     let tempTrips = [...allTrips];
@@ -74,10 +86,11 @@ export default function ManagerDashboardPage() {
       tempTrips = tempTrips.filter(trip => trip.driverName === filters.driverName);
     }
     if (filters.tripDate) {
-      const selectedDate = format(filters.tripDate, 'yyyy-MM-dd');
+      const selectedDateStr = format(filters.tripDate, 'yyyy-MM-dd');
       tempTrips = tempTrips.filter(trip => {
-        const tripDate = trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : parseISO(trip.tripDate as unknown as string);
-        return format(tripDate, 'yyyy-MM-dd') === selectedDate;
+        // Ensure trip.tripDate is handled as a Date object
+        const tripDateObj = trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : new Date(trip.tripDate);
+        return format(tripDateObj, 'yyyy-MM-dd') === selectedDateStr;
       });
     }
     setFilteredTrips(tempTrips);
@@ -98,7 +111,7 @@ export default function ManagerDashboardPage() {
 
     setIsSummarizing(true);
     setCurrentTripForSummary(trip);
-    setTripSummary(null); // Clear previous summary
+    setTripSummary(null); 
     setIsSummaryModalOpen(true);
 
     try {
@@ -115,6 +128,36 @@ export default function ManagerDashboardPage() {
     }
   };
 
+  const handleEditTrip = (trip: Trip) => {
+    setCurrentTripToEdit(trip);
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveTrip = async (tripId: string, data: TripFormData) => {
+    if (!tripId) {
+      toast({ title: "Error", description: "Trip ID is missing.", variant: "destructive" });
+      return;
+    }
+    setIsSavingTrip(true);
+    try {
+      const result = await updateTrip(tripId, data);
+      if (result.success) {
+        toast({ title: "Trip Updated", description: "Trip details have been successfully updated." });
+        setIsEditModalOpen(false);
+        setCurrentTripToEdit(null);
+        await fetchAllTrips(); 
+      } else {
+        throw new Error(result.error || "Failed to update trip.");
+      }
+    } catch (err) {
+      console.error("Error saving trip:", err);
+      toast({ title: "Update Failed", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setIsSavingTrip(false);
+    }
+  };
+
+
   const aggregateSummary = useMemo(() => {
     if (filteredTrips.length === 0) return { totalTrips: 0, totalDistance: 0, averageDistance: 0 };
     const totalTrips = filteredTrips.length;
@@ -124,7 +167,7 @@ export default function ManagerDashboardPage() {
   }, [filteredTrips]);
 
   const calculateDuration = (startTime: string, endTime: string, tripDate: Date | Timestamp): string => {
-    const date = tripDate instanceof Timestamp ? tripDate.toDate() : tripDate;
+    const date = tripDate instanceof Timestamp ? tripDate.toDate() : new Date(tripDate); // Ensure date is a Date object
     const startDateTime = new Date(date);
     const [startHours, startMinutes] = startTime.split(':').map(Number);
     startDateTime.setHours(startHours, startMinutes, 0, 0);
@@ -222,37 +265,43 @@ export default function ManagerDashboardPage() {
             ) : filteredTrips.length === 0 && !error ? (
               <p className="text-center text-muted-foreground py-10">No trips match the current filters, or no trips submitted yet.</p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Driver</TableHead>
-                    <TableHead>Time (Start/End)</TableHead>
-                    <TableHead>Duration</TableHead>
-                    <TableHead>Distance</TableHead>
-                    <TableHead>Details</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredTrips.map((trip) => (
-                    <TableRow key={trip.id}>
-                      <TableCell>{format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : trip.tripDate, 'MMM dd, yyyy')}</TableCell>
-                      <TableCell>{trip.driverName}</TableCell>
-                      <TableCell>{trip.startTime} / {trip.endTime}</TableCell>
-                      <TableCell>{calculateDuration(trip.startTime, trip.endTime, trip.tripDate)}</TableCell>
-                      <TableCell>{trip.endMileage - trip.startMileage} miles</TableCell>
-                      <TableCell className="max-w-xs truncate" title={trip.tripDetails}>{trip.tripDetails || 'N/A'}</TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => handleSummarize(trip)} disabled={isSummarizing && currentTripForSummary?.id === trip.id}>
-                          {isSummarizing && currentTripForSummary?.id === trip.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
-                           <span className="ml-1">Summarize</span>
-                        </Button>
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Driver</TableHead>
+                      <TableHead>Time (Start/End)</TableHead>
+                      <TableHead>Duration</TableHead>
+                      <TableHead>Distance</TableHead>
+                      <TableHead>Details</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredTrips.map((trip) => (
+                      <TableRow key={trip.id}>
+                        <TableCell>{format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : new Date(trip.tripDate), 'MMM dd, yyyy')}</TableCell>
+                        <TableCell>{trip.driverName}</TableCell>
+                        <TableCell>{trip.startTime} / {trip.endTime}</TableCell>
+                        <TableCell>{calculateDuration(trip.startTime, trip.endTime, trip.tripDate)}</TableCell>
+                        <TableCell>{trip.endMileage - trip.startMileage} miles</TableCell>
+                        <TableCell className="max-w-xs truncate" title={trip.tripDetails}>{trip.tripDetails || 'N/A'}</TableCell>
+                        <TableCell className="text-right space-x-1">
+                          <Button variant="ghost" size="icon" onClick={() => handleSummarize(trip)} disabled={isSummarizing && currentTripForSummary?.id === trip.id} className="p-1 h-8 w-8">
+                            {isSummarizing && currentTripForSummary?.id === trip.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
+                            <span className="sr-only">Summarize</span>
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleEditTrip(trip)} className="p-1 h-8 w-8">
+                            <Pencil className="h-4 w-4" />
+                            <span className="sr-only">Edit</span>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -261,7 +310,7 @@ export default function ManagerDashboardPage() {
       <Dialog open={isSummaryModalOpen} onOpenChange={setIsSummaryModalOpen}>
         <DialogContent className="sm:max-w-[525px]">
           <DialogHeader>
-            <DialogTitle>Trip Summary for {currentTripForSummary?.driverName} on {currentTripForSummary && format(currentTripForSummary.tripDate instanceof Timestamp ? currentTripForSummary.tripDate.toDate() : currentTripForSummary.tripDate, 'MMM dd, yyyy')}</DialogTitle>
+            <DialogTitle>Trip Summary for {currentTripForSummary?.driverName} on {currentTripForSummary && format(currentTripForSummary.tripDate instanceof Timestamp ? currentTripForSummary.tripDate.toDate() : new Date(currentTripForSummary.tripDate), 'MMM dd, yyyy')}</DialogTitle>
             <DialogDescription>
               AI-generated summary of the trip details.
             </DialogDescription>
@@ -282,8 +331,33 @@ export default function ManagerDashboardPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={isEditModalOpen} onOpenChange={(isOpen) => {
+        if (!isOpen && !isSavingTrip) { // Don't clear if still saving
+          setCurrentTripToEdit(null); 
+        }
+        setIsEditModalOpen(isOpen);
+      }}>
+        <DialogContent className="sm:max-w-[625px]"> {/* Increased width for form */}
+          <DialogHeader>
+            <DialogTitle>Edit Trip</DialogTitle>
+            <DialogDescription>
+              Update the details for this trip. Click save when you&apos;re done.
+            </DialogDescription>
+          </DialogHeader>
+          {currentTripToEdit && (
+            <EditTripForm
+              trip={currentTripToEdit}
+              onSave={handleSaveTrip}
+              onCancel={() => {
+                setIsEditModalOpen(false);
+                setCurrentTripToEdit(null);
+              }}
+              isSaving={isSavingTrip}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
     </AppLayout>
   );
 }
-
-    
