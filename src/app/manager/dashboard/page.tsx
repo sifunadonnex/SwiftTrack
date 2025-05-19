@@ -631,7 +631,7 @@ export default function ManagerDashboardPage() {
         }
         setIsEditModalOpen(isOpen);
       }}>
-        <DialogContent className="sm:max-w-[625px] no-print"> 
+        <DialogContent className="w-[95vw] sm:max-w-lg no-print"> 
           <DialogHeader>
             <DialogTitle>Edit Trip</DialogTitle>
             <DialogDescription>
@@ -655,5 +655,3 @@ export default function ManagerDashboardPage() {
     </AppLayout>
   );
 }
-
-    
