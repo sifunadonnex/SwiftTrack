@@ -8,7 +8,7 @@ import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import AppLayout from '@/components/layout/app-layout';
 import { useAuthClient } from '@/hooks/use-auth-client';
 import { useToast } from '@/hooks/use-toast';
@@ -71,7 +71,6 @@ export default function ProfilePage() {
       // The useAuthClient hook should pick up the change from onAuthStateChanged
       // or by manually refreshing the user data if necessary.
       // Forcing a re-fetch or update of user in AuthContext might be needed if not immediate.
-      // However, updateFirebaseAuthProfile should trigger onAuthStateChanged if it causes token refresh.
 
     } catch (error: any) {
       console.error("Error updating profile:", error);
