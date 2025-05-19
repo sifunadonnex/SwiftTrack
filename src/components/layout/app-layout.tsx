@@ -3,7 +3,7 @@
 
 import type React from 'react';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
-import { User, LogOut, LayoutDashboard, ClipboardPlus, Car, Settings, Search, Users } from 'lucide-react';
+import { User, LogOut, LayoutDashboard, ClipboardPlus, Car, Settings, Search, Users, UserCircle } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -24,14 +24,13 @@ interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
-  roles: UserRole[];
+  roles: UserRole[]; // Roles that can see this nav item
 }
 
 const navItems: NavItem[] = [
   { href: '/employee/dashboard', label: 'My Trips', icon: LayoutDashboard, roles: ['employee', 'manager'] },
   { href: '/employee/submit-trip', label: 'Submit Trip', icon: ClipboardPlus, roles: ['employee', 'manager'] },
   { href: '/manager/dashboard', label: 'Manager Dashboard', icon: Users, roles: ['manager'] },
-  // Add more navigation items here, e.g., manage drivers, settings for manager
 ];
 
 export default function AppLayout({ children, requiredRole }: AppLayoutProps) {
@@ -76,7 +75,7 @@ export default function AppLayout({ children, requiredRole }: AppLayoutProps) {
                     <SidebarMenuButton
                       isActive={pathname === item.href}
                       tooltip={item.label}
-                      className="w-full"
+                      className="w-full data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground"
                     >
                       <item.icon />
                       <span>{item.label}</span>
@@ -114,6 +113,13 @@ export default function AppLayout({ children, requiredRole }: AppLayoutProps) {
                        <p className="text-xs leading-none text-muted-foreground capitalize pt-1">Role: {role}</p>
                     </div>
                   </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile">
+                      <UserCircle className="mr-2 h-4 w-4" />
+                      <span>Profile</span>
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout}>
                     <LogOut className="mr-2 h-4 w-4" />

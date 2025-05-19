@@ -2,24 +2,25 @@
 import type { User as FirebaseUser } from 'firebase/auth';
 import type { Timestamp } from 'firebase/firestore';
 
-export type UserRole = 'employee' | 'manager' | null;
+// Ensure UserRole is always defined as 'employee' or 'manager' once determined,
+// with loading states handling the period of uncertainty.
+export type UserRole = 'employee' | 'manager';
 
 export interface AppUser extends FirebaseUser {
-  role?: UserRole;
-  // idTokenResult is not directly available on FirebaseUser, custom claims are usually on idToken
+  // role?: UserRole; // Role is now managed separately in AuthContext/useAuthClient
 }
 
 export interface Trip {
   id?: string;
   userId: string;
   driverName: string;
-  tripDate: Date | Timestamp; // Store as Date, convert to/from Timestamp for Firestore
+  tripDate: Date | Timestamp; 
   fromLocation: string;
   toLocation?: string | null;
-  startTime: string; // e.g., "09:00"
-  endTime?: string | null; // e.g., "17:00", now optional
+  startTime: string; 
+  endTime?: string | null; 
   startMileage: number;
-  endMileage?: number | null; // now optional
+  endMileage?: number | null; 
   tripDetails?: string;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
@@ -29,11 +30,10 @@ export interface TripFormData {
   tripDate: Date;
   driverName: string;
   fromLocation: string;
-  toLocation?: string | null; // Initially string from form
+  toLocation?: string | null; 
   startTime: string;
-  endTime?: string | null; // Initially string from form, now optional
-  startMileage: string; // Initially string from form
-  endMileage?: string | null; // Initially string from form, now optional
+  endTime?: string | null; 
+  startMileage: string; 
+  endMileage?: string | null; 
   tripDetails?: string;
 }
-

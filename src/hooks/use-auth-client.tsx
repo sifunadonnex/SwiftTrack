@@ -3,32 +3,31 @@
 
 import React, { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth, db } from '@/config/firebase'; // Added db
+import { auth, db } from '@/config/firebase';
 import type { AppUser, UserRole } from '@/lib/types';
 import { useRouter, usePathname } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore'; // Added Firestore imports
+import { doc, getDoc } from 'firebase/firestore';
 
 interface AuthContextType {
   user: AppUser | null;
-  role: UserRole | null;
+  role: UserRole | null; // Can be null initially or if no role found/error
   loading: boolean;
-  isManuallyCheckingRole: boolean; // Renamed for clarity, still indicates async role check
+  isManuallyCheckingRole: boolean;
 }
 
-// Updated default value to be more explicit for consumers
 const defaultAuthContextValue: AuthContextType = {
   user: null,
-  role: null,
+  role: null, // Default to null, actual role type is 'employee' | 'manager'
   loading: true,
-  isManuallyCheckingRole: true, // Start as true because role check is async
+  isManuallyCheckingRole: true,
 };
 
 const AuthContext = createContext<AuthContextType>(defaultAuthContextValue);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AppUser | null>(null);
-  const [role, setRole] = useState<UserRole | null>(null);
+  const [role, setRole] = useState<UserRole | null>(null); // Initialize as null
   const [loading, setLoading] = useState(true);
   const [isManuallyCheckingRole, setIsManuallyCheckingRole] = useState(true);
 
@@ -36,6 +35,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       setLoading(true);
       setIsManuallyCheckingRole(true);
+      setUser(null); // Reset user and role on auth change
+      setRole(null);
 
       if (firebaseUser) {
         const appUser: AppUser = {
@@ -44,7 +45,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           displayName: firebaseUser.displayName,
           photoURL: firebaseUser.photoURL,
           emailVerified: firebaseUser.emailVerified,
-          // role will be set from Firestore
+          // FirebaseUser properties below are for type compatibility, not all are used directly
+          isAnonymous: firebaseUser.isAnonymous,
+          metadata: firebaseUser.metadata,
+          providerData: firebaseUser.providerData,
+          providerId: firebaseUser.providerId,
+          tenantId: firebaseUser.tenantId,
+          delete: () => firebaseUser.delete(),
+          getIdToken: (forceRefresh) => firebaseUser.getIdToken(forceRefresh),
+          getIdTokenResult: (forceRefresh) => firebaseUser.getIdTokenResult(forceRefresh),
+          reload: () => firebaseUser.reload(),
+          toJSON: () => firebaseUser.toJSON(),
         };
         setUser(appUser);
 
@@ -53,22 +64,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const docSnap = await getDoc(userDocRef);
 
           if (docSnap.exists()) {
-            setRole((docSnap.data()?.role as UserRole) || 'employee');
+            const firestoreRole = docSnap.data()?.role as UserRole;
+            // Ensure fetched role is one of the valid UserRole types
+            if (firestoreRole === 'employee' || firestoreRole === 'manager') {
+              setRole(firestoreRole);
+            } else {
+              console.warn(`Invalid role '${firestoreRole}' found in Firestore for UID: ${firebaseUser.uid}. Defaulting to 'employee'.`);
+              setRole('employee');
+            }
           } else {
-            // Document doesn't exist, perhaps a new user or data inconsistency
             console.warn(`User document not found for UID: ${firebaseUser.uid}. Defaulting to 'employee' role.`);
-            setRole('employee'); // Default role if document is missing
+            setRole('employee');
           }
         } catch (error) {
           console.error("Error fetching user role from Firestore:", error);
           setRole('employee'); // Fallback role on error
         } finally {
           setIsManuallyCheckingRole(false);
-          setLoading(false); // Loading complete after auth check and role fetch attempt
+          setLoading(false);
         }
       } else {
-        setUser(null);
-        setRole(null);
+        // No Firebase user
         setIsManuallyCheckingRole(false);
         setLoading(false);
       }
@@ -77,7 +93,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => unsubscribe();
   }, []);
 
-  // Memoize context value to prevent unnecessary re-renders
   const authContextValue = React.useMemo(() => ({
     user,
     role,
@@ -94,7 +109,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 export const useAuthClient = (): AuthContextType => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (context === undefined) { // Check for undefined, not defaultAuthContextValue
     throw new Error('useAuthClient must be used within an AuthProvider');
   }
   return context;
@@ -102,7 +117,7 @@ export const useAuthClient = (): AuthContextType => {
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requiredRole?: UserRole | UserRole[];
+  requiredRole?: UserRole | UserRole[]; // Role type is 'employee' | 'manager'
 }
 
 export const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
@@ -112,30 +127,31 @@ export const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) 
 
   useEffect(() => {
     if (loading || isManuallyCheckingRole) {
-      return; // Still determining auth state or role, do nothing yet
+      return;
     }
 
     if (!user) {
-      // User not logged in, redirect to login
       router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
-      return; // Important to return to prevent further execution in this effect
+      return;
     }
 
-    if (requiredRole) {
+    if (requiredRole && role) { // Ensure role is not null before checking
       const rolesArray = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-      if (!role || !rolesArray.includes(role)) {
-        // User does not have the required role, redirect
+      if (!rolesArray.includes(role)) {
         console.warn(`User with role '${role}' tried to access '${pathname}' which requires '${requiredRole}'. Redirecting.`);
-        // Redirect to a sensible default based on their actual role, or a generic 'access-denied' page
         if (role === 'manager') {
           router.replace('/manager/dashboard');
-        } else { // 'employee' or other
+        } else {
           router.replace('/employee/dashboard');
         }
       }
+    } else if (requiredRole && !role) {
+      // Role is required but not yet determined (or null), might redirect to login or a safe page
+      // This case should be less frequent if isManuallyCheckingRole is effective
+      console.warn(`Role not determined for user accessing protected route '${pathname}'. Redirecting to login.`);
+      router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
     }
   }, [user, role, loading, isManuallyCheckingRole, router, pathname, requiredRole]);
-
 
   if (loading || isManuallyCheckingRole) {
     return (
@@ -146,16 +162,16 @@ export const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) 
     );
   }
   
-  // After loading and role check, if user is null (should be caught by useEffect redirect)
-  if (!user) {
-      return null; 
-  }
-  // If requiredRole is set, and current role doesn't match (should be caught by useEffect redirect)
-  if (requiredRole) {
+  if (!user) return null; 
+  
+  if (requiredRole && role) { // Check role again before rendering children
     const rolesArray = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-    if (!role || !rolesArray.includes(role)) {
+    if (!rolesArray.includes(role)) {
         return null; 
     }
+  } else if (requiredRole && !role) {
+    // If role is required but not available (and not loading), something is wrong or user has no role
+    return null; // Or redirect, though useEffect should handle this
   }
 
   return <>{children}</>;
