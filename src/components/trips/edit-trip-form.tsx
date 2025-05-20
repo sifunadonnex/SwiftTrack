@@ -19,66 +19,78 @@ import { Timestamp } from "firebase/firestore";
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/; // HH:MM format
 
-const editTripFormSchema = z.object({
-  tripDate: z.date({ required_error: "Trip date is required." }),
-  returnDate: z.date().optional().nullable(),
-  driverName: z.string().min(2, { message: "Driver name must be at least 2 characters." }),
-  fromLocation: z.string().min(2, { message: "From location must be at least 2 characters." }),
-  toLocation: z.string().optional().or(z.literal('')),
-  startTime: z.string().regex(timeRegex, { message: "Invalid start time format (HH:MM)." }),
-  endTime: z.string().regex(timeRegex, { message: "Invalid end time format (HH:MM)." }).optional().or(z.literal('')),
-  startMileage: z.string().refine(val => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, { message: "Start mileage must be a non-negative number." }),
-  endMileage: z.string().refine(val => val === '' || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0), { message: "End mileage must be a non-negative number if provided." }).optional().or(z.literal('')),
-  tripDetails: z.string().min(1, { message: "Trip details are required." }), // Changed from optional
-}).refine(data => {
-  if (data.endMileage && data.endMileage.trim() !== "" && data.startMileage && data.startMileage.trim() !== "") {
-    const start = parseFloat(data.startMileage);
-    const end = parseFloat(data.endMileage);
-    if (isNaN(start) || isNaN(end)) return true;
-    return end >= start;
-  }
-  return true;
-}, {
-  message: "End mileage must be greater than or equal to start mileage, if provided.",
-  path: ["endMileage"],
-}).refine(data => {
-    if (data.endTime && data.endTime.trim() !== "" && data.startTime && data.startTime.trim() !== "") {
-        const effectiveReturnDate = data.returnDate || data.tripDate;
-        if (format(data.tripDate, 'yyyy-MM-dd') === format(effectiveReturnDate, 'yyyy-MM-dd')) {
-            const [startHour, startMinute] = data.startTime.split(':').map(Number);
-            const [endHour, endMinute] = data.endTime.split(':').map(Number);
-            const startDate = new Date(2000, 0, 1, startHour, startMinute);
-            const endDate = new Date(2000, 0, 1, endHour, endMinute);
-            return endDate > startDate;
-        }
+const createEditTripFormSchema = (isCompletingTrip?: boolean) => {
+  const endTimeSchema = isCompletingTrip
+    ? z.string().regex(timeRegex, { message: "End time is required (HH:MM)." })
+    : z.string().regex(timeRegex, { message: "Invalid end time format (HH:MM)." }).optional().or(z.literal(''));
+
+  const endMileageSchema = isCompletingTrip
+    ? z.string().refine(val => val.trim() !== '' && !isNaN(parseFloat(val)) && parseFloat(val) >= 0, { message: "End mileage is required and must be a non-negative number." })
+    : z.string().refine(val => val === '' || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0), { message: "End mileage must be a non-negative number if provided." }).optional().or(z.literal(''));
+
+  return z.object({
+    tripDate: z.date({ required_error: "Trip date is required." }),
+    returnDate: z.date().optional().nullable(),
+    driverName: z.string().min(2, { message: "Driver name must be at least 2 characters." }),
+    fromLocation: z.string().min(2, { message: "From location must be at least 2 characters." }),
+    toLocation: z.string().optional().or(z.literal('')),
+    startTime: z.string().regex(timeRegex, { message: "Invalid start time format (HH:MM)." }),
+    endTime: endTimeSchema,
+    startMileage: z.string().refine(val => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, { message: "Start mileage must be a non-negative number." }),
+    endMileage: endMileageSchema,
+    tripDetails: z.string().min(1, { message: "Trip details are required." }),
+  }).refine(data => {
+    if (data.endMileage && data.endMileage.trim() !== "" && data.startMileage && data.startMileage.trim() !== "") {
+      const start = parseFloat(data.startMileage);
+      const end = parseFloat(data.endMileage);
+      if (isNaN(start) || isNaN(end)) return true;
+      return end >= start;
     }
     return true;
-}, {
-    message: "End time must be after start time if on the same day.",
-    path: ["endTime"],
-}).refine(data => {
-  if (data.returnDate && data.tripDate) { // Ensure tripDate is also defined
-    return data.returnDate >= data.tripDate;
-  }
-  return true;
-}, {
-  message: "Return date cannot be before trip date.",
-  path: ["returnDate"],
-});
+  }, {
+    message: "End mileage must be greater than or equal to start mileage, if provided.",
+    path: ["endMileage"],
+  }).refine(data => {
+      if (data.endTime && data.endTime.trim() !== "" && data.startTime && data.startTime.trim() !== "") {
+          const effectiveReturnDate = data.returnDate || data.tripDate;
+          if (format(data.tripDate, 'yyyy-MM-dd') === format(effectiveReturnDate, 'yyyy-MM-dd')) {
+              const [startHour, startMinute] = data.startTime.split(':').map(Number);
+              const [endHour, endMinute] = data.endTime.split(':').map(Number);
+              if(isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) return true; // Let regex handle format
+              const startDate = new Date(2000, 0, 1, startHour, startMinute);
+              const endDate = new Date(2000, 0, 1, endHour, endMinute);
+              return endDate > startDate;
+          }
+      }
+      return true;
+  }, {
+      message: "End time must be after start time if on the same day.",
+      path: ["endTime"],
+  }).refine(data => {
+    if (data.returnDate && data.tripDate) { 
+      return format(data.returnDate, 'yyyy-MM-dd') >= format(data.tripDate, 'yyyy-MM-dd');
+    }
+    return true;
+  }, {
+    message: "Return date cannot be before trip date.",
+    path: ["returnDate"],
+  });
+};
 
-type EditTripFormValues = z.infer<typeof editTripFormSchema>;
+type EditTripFormValues = z.infer<ReturnType<typeof createEditTripFormSchema>>;
 
 interface EditTripFormProps {
   trip: Trip;
   onSave: (tripId: string, data: TripFormData) => Promise<void>;
   onCancel: () => void;
   isSaving: boolean;
+  isCompletingTrip?: boolean;
 }
 
-export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditTripFormProps) {
+export default function EditTripForm({ trip, onSave, onCancel, isSaving, isCompletingTrip }: EditTripFormProps) {
 
   const getInitialDate = (tripDate: Date | Timestamp | string | null | undefined): Date => {
-    if (!tripDate) return new Date(); // Default if undefined or null
+    if (!tripDate) return new Date(); 
     if (tripDate instanceof Timestamp) return tripDate.toDate();
     if (typeof tripDate === 'string') return parseISO(tripDate);
     if (tripDate instanceof Date) return tripDate;
@@ -93,9 +105,10 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
     return null;
   }
 
+  const formSchema = createEditTripFormSchema(isCompletingTrip);
 
   const form = useForm<EditTripFormValues>({
-    resolver: zodResolver(editTripFormSchema),
+    resolver: zodResolver(formSchema),
     defaultValues: {
       tripDate: getInitialDate(trip.tripDate),
       returnDate: getInitialOptionalDate(trip.returnDate),
@@ -106,7 +119,7 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
       endTime: trip.endTime || "",
       startMileage: trip.startMileage?.toString() || "0",
       endMileage: trip.endMileage?.toString() || "",
-      tripDetails: trip.tripDetails, // Now always a string
+      tripDetails: trip.tripDetails || "", 
     },
   });
 
@@ -121,7 +134,7 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
         endTime: trip.endTime || "",
         startMileage: trip.startMileage?.toString() || "0",
         endMileage: trip.endMileage?.toString() || "",
-        tripDetails: trip.tripDetails, // Now always a string
+        tripDetails: trip.tripDetails || "",
     });
   }, [trip, form]);
 
@@ -131,10 +144,10 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
       ...values,
       returnDate: values.returnDate || null,
       toLocation: values.toLocation || null,
-      startMileage: values.startMileage,
-      endMileage: values.endMileage || null,
+      startMileage: values.startMileage, // string, parsed in server action
+      endMileage: values.endMileage || null, // string or null, parsed in server action
       endTime: values.endTime || null,
-      // tripDetails is already in values and now required
+      tripDetails: values.tripDetails, 
     };
     await onSave(trip.id, dataToSave);
   }
@@ -207,8 +220,8 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
                         field.onChange(date);
                       }}
                       disabled={(date) => {
-                        const tripDate = form.getValues("tripDate");
-                        return date > new Date() || (tripDate && date < tripDate);
+                        const tripDateValue = form.getValues("tripDate");
+                        return date > new Date() || (tripDateValue && date < tripDateValue);
                       }}
                       initialFocus
                     />
@@ -254,7 +267,7 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
               <FormItem>
                 <FormLabel>To Location</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., Client Site A" {...field} />
+                  <Input placeholder="e.g., Client Site A (Optional)" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -281,11 +294,11 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
             name="endTime"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>End Time</FormLabel>
+                <FormLabel>End Time {isCompletingTrip && <span className="text-destructive">*</span>}</FormLabel>
                 <FormControl>
                   <Input type="time" {...field} />
                 </FormControl>
-                <FormDescription>HH:MM</FormDescription>
+                <FormDescription>HH:MM {isCompletingTrip ? '(Required to complete trip)' : '(Optional)'}</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -299,7 +312,7 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
               <FormItem>
                 <FormLabel>Start Mileage</FormLabel>
                 <FormControl>
-                  <Input type="number" placeholder="e.g., 15000" {...field} min="0" step="0.1" />
+                  <Input type="number" placeholder="e.g., 15000" {...field} min="0" step="any" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -310,10 +323,11 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
             name="endMileage"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>End Mileage</FormLabel>
+                <FormLabel>End Mileage {isCompletingTrip && <span className="text-destructive">*</span>}</FormLabel>
                 <FormControl>
-                  <Input type="number" placeholder="e.g., 15100" {...field} min="0" step="0.1" />
+                  <Input type="number" placeholder="e.g., 15100" {...field} min="0" step="any" />
                 </FormControl>
+                 <FormDescription>{isCompletingTrip ? '(Required to complete trip)' : '(Optional)'}</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -348,4 +362,3 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
     </Form>
   );
 }
-

@@ -69,6 +69,7 @@ export default function ManagerDashboardPage() {
           returnDate: data.returnDate ? (data.returnDate instanceof Timestamp ? data.returnDate.toDate() : new Date(data.returnDate)) : null,
           fromLocation: data.fromLocation || "N/A",
           toLocation: data.toLocation || "N/A",
+          tripDetails: data.tripDetails || "", // Ensure tripDetails is always a string
         } as Trip;
       });
       setAllTrips(tripsData);
@@ -98,15 +99,11 @@ export default function ManagerDashboardPage() {
 
       tempTrips = tempTrips.filter(trip => {
         const tripDateObj = trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : new Date(trip.tripDate);
-        // Consider returnDate for filtering if it exists
         const effectiveEndDate = trip.returnDate ? (trip.returnDate instanceof Timestamp ? trip.returnDate.toDate() : new Date(trip.returnDate)) : tripDateObj;
         
-        // Check if either tripDate or effectiveEndDate falls within the range
         const tripStartsInRange = isWithinInterval(tripDateObj, { start: rangeStart, end: rangeEnd });
         const tripEndsInRange = isWithinInterval(effectiveEndDate, { start: rangeStart, end: rangeEnd });
-        // Or if the range is within the trip's duration
         const rangeWithinTrip = isWithinInterval(rangeStart, {start: tripDateObj, end: effectiveEndDate}) && isWithinInterval(rangeEnd, {start: tripDateObj, end: effectiveEndDate});
-
 
         return tripStartsInRange || tripEndsInRange || rangeWithinTrip;
       });
@@ -121,7 +118,7 @@ export default function ManagerDashboardPage() {
         setMaintenanceSuggestion(null);
         try {
           const relevantTripDetails = filteredTrips
-            .slice(0, 30)
+            .slice(0, 30) // Limit to recent 30 trips for performance and relevance
             .map(trip => trip.tripDetails)
             .filter((details): details is string => typeof details === 'string' && details.trim() !== '');
 
@@ -138,12 +135,12 @@ export default function ManagerDashboardPage() {
           }
         } catch (err) {
           console.error("Error fetching maintenance suggestion:", err);
-          setMaintenanceSuggestion(null);
+          setMaintenanceSuggestion(null); // Clear suggestion on error
         } finally {
           setIsFetchingSuggestion(false);
         }
       } else {
-        setMaintenanceSuggestion(null);
+        setMaintenanceSuggestion(null); // Clear if no trips
       }
     };
     fetchSuggestion();
@@ -199,7 +196,7 @@ export default function ManagerDashboardPage() {
         toast({ title: "Trip Updated", description: "Trip details have been successfully updated." });
         setIsEditModalOpen(false);
         setCurrentTripToEdit(null);
-        await fetchAllTrips();
+        await fetchAllTrips(); // Refresh all trips data
       } else {
         throw new Error(result.error || "Failed to update trip.");
       }
@@ -219,18 +216,20 @@ export default function ManagerDashboardPage() {
   ): string => {
     if (!startTime || !endTime || !tripDate) return "N/A";
 
-    const tDate = tripDate instanceof Timestamp ? tripDate.toDate() : new Date(tripDate);
+    const tDate = tripDate instanceof Timestamp ? tripDate.toDate() : (tripDate ? new Date(tripDate) : new Date());
     const rDate = returnDate ? (returnDate instanceof Timestamp ? returnDate.toDate() : new Date(returnDate)) : tDate;
 
     const startDateTime = new Date(tDate);
     const [startHours, startMinutes] = startTime.split(':').map(Number);
+    if(isNaN(startHours) || isNaN(startMinutes)) return "N/A";
     startDateTime.setHours(startHours, startMinutes, 0, 0);
 
     const endDateTime = new Date(rDate);
     const [endHours, endMinutes] = endTime.split(':').map(Number);
+    if(isNaN(endHours) || isNaN(endMinutes)) return "N/A";
     endDateTime.setHours(endHours, endMinutes, 0, 0);
 
-    if (endDateTime <= startDateTime) return "N/A";
+    if (endDateTime <= startDateTime) return "Invalid";
 
     let diffMs = differenceInMilliseconds(endDateTime, startDateTime);
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -241,7 +240,7 @@ export default function ManagerDashboardPage() {
   };
 
   const getTripStatusBadge = (trip: Trip): { text: string; variant: "default" | "secondary" | "outline" | "destructive" } => {
-    if (trip.endTime && trip.endMileage != null) {
+    if (trip.endTime && trip.endTime.trim() !== "" && trip.endMileage != null) {
       return { text: "Completed", variant: "default" };
     }
     return { text: "Pending", variant: "secondary" };
@@ -252,15 +251,17 @@ export default function ManagerDashboardPage() {
   };
 
   const convertTripToCSVRow = (trip: Trip): string[] => {
-    const tripDate = format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : trip.tripDate, 'yyyy-MM-dd');
-    const returnD = trip.returnDate ? (trip.returnDate instanceof Timestamp ? trip.returnDate.toDate() : new Date(trip.returnDate)) : (trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : new Date(trip.tripDate));
-    const returnDateStr = format(returnD, 'yyyy-MM-dd');
+    const tripDateObj = trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : new Date(trip.tripDate);
+    const returnDateObj = trip.returnDate ? (trip.returnDate instanceof Timestamp ? trip.returnDate.toDate() : new Date(trip.returnDate)) : tripDateObj;
+    
+    const tripDateStr = format(tripDateObj, 'yyyy-MM-dd');
+    const returnDateStr = format(returnDateObj, 'yyyy-MM-dd');
     const distance = trip.endMileage != null && trip.startMileage != null ? (trip.endMileage - trip.startMileage).toString() : 'N/A';
-    const duration = calculateDuration(trip.startTime, trip.endTime, trip.tripDate, trip.returnDate);
+    const duration = calculateDuration(trip.startTime, trip.endTime, tripDateObj, returnDateObj);
     const status = getTripStatusBadge(trip).text;
 
     return [
-      tripDate,
+      tripDateStr,
       returnDateStr,
       trip.driverName,
       trip.fromLocation || 'N/A',
@@ -285,7 +286,7 @@ export default function ManagerDashboardPage() {
     const headers = [
       "Trip Date", "Return Date", "Driver Name", "From Location", "To Location",
       "Start Time", "End Time", "Start Mileage", "End Mileage",
-      "Duration (H:M)", "Distance (Miles)", "Status", "Trip Details"
+      "Duration", "Distance (Miles)", "Status", "Trip Details"
     ];
     const csvRows = [headers.join(',')];
 
@@ -315,7 +316,7 @@ export default function ManagerDashboardPage() {
 
   const aggregateSummary = useMemo(() => {
     if (filteredTrips.length === 0) return { totalTrips: 0, totalDistance: 0, averageDistance: 0 };
-    const completedTrips = filteredTrips.filter(trip => trip.endMileage != null && trip.startMileage != null);
+    const completedTrips = filteredTrips.filter(trip => trip.endMileage != null && trip.startMileage != null && trip.endTime && trip.endTime.trim() !== "");
     const totalTrips = filteredTrips.length;
     const totalDistance = completedTrips.reduce((sum, trip) => sum + (trip.endMileage! - trip.startMileage!), 0);
     const averageDistance = completedTrips.length > 0 ? parseFloat((totalDistance / completedTrips.length).toFixed(1)) : 0;
@@ -469,7 +470,7 @@ export default function ManagerDashboardPage() {
                 <p className="ml-2">Loading trips...</p>
               </div>
             ) : filteredTrips.length === 0 && !error ? (
-              <div className="text-center py-10">
+              <div className="text-center py-10 no-print">
                 <Route className="mx-auto h-12 w-12 text-muted-foreground" />
                 <h3 className="mt-2 text-lg font-medium">No Trips Found</h3>
                 <p className="mt-1 text-sm text-muted-foreground">No trips match the current filters, or no trips submitted yet.</p>
@@ -481,8 +482,9 @@ export default function ManagerDashboardPage() {
                   {filteredTrips.map((trip) => {
                     const status = getTripStatusBadge(trip);
                     const distance = trip.endMileage != null && trip.startMileage != null ? (trip.endMileage - trip.startMileage) : null;
-                    const duration = calculateDuration(trip.startTime, trip.endTime, trip.tripDate, trip.returnDate);
-                    const effectiveReturnDate = trip.returnDate || trip.tripDate;
+                    const tripDateObj = trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : new Date(trip.tripDate);
+                    const effectiveReturnDate = trip.returnDate ? (trip.returnDate instanceof Timestamp ? trip.returnDate.toDate() : new Date(trip.returnDate)) : tripDateObj;
+                    const duration = calculateDuration(trip.startTime, trip.endTime, tripDateObj, effectiveReturnDate);
 
                     return (
                       <Card key={trip.id} className="flex flex-col shadow-md hover:shadow-lg transition-shadow duration-200">
@@ -491,8 +493,8 @@ export default function ManagerDashboardPage() {
                             <div>
                               <CardTitle className="text-xl flex items-center">
                                 <CalendarDays className="mr-2 h-5 w-5 text-primary" />
-                                {format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : trip.tripDate, 'MMM dd, yyyy')}
-                                {effectiveReturnDate && format(effectiveReturnDate, 'yyyy-MM-dd') !== format(trip.tripDate, 'yyyy-MM-dd') && (
+                                {format(tripDateObj, 'MMM dd, yyyy')}
+                                {effectiveReturnDate && format(effectiveReturnDate, 'yyyy-MM-dd') !== format(tripDateObj, 'yyyy-MM-dd') && (
                                   <span className="text-sm text-muted-foreground ml-2">(Return: {format(effectiveReturnDate, 'MMM dd')})</span>
                                 )}
                               </CardTitle>
@@ -601,7 +603,6 @@ export default function ManagerDashboardPage() {
                     <TableBody>
                       {filteredTrips.map((trip) => {
                         const csvRow = convertTripToCSVRow(trip);
-                        // Order of CSV row: TripDate, ReturnDate, Driver, From, To, StartTime, EndTime, StartMileage, EndMileage, Duration, Distance, Status, Details
                         return (
                           <TableRow key={trip.id + "-print"}>
                             <TableCell>{csvRow[0]}</TableCell>
@@ -622,6 +623,9 @@ export default function ManagerDashboardPage() {
                       })}
                     </TableBody>
                   </Table>
+                   {filteredTrips.length === 0 && (
+                    <p className="text-center py-4">No trips match the current filters for printing.</p>
+                  )}
                 </div>
               </>
             )}
@@ -675,6 +679,7 @@ export default function ManagerDashboardPage() {
                 setCurrentTripToEdit(null);
               }}
               isSaving={isSavingTrip}
+              isCompletingTrip={!currentTripToEdit.endTime || currentTripToEdit.endMileage == null}
             />
           )}
         </DialogContent>
