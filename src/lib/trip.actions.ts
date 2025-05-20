@@ -55,7 +55,7 @@ export async function addTrip(
       endTime: (formData.endTime && formData.endTime.trim() !== "") ? formData.endTime : null,
       startMileage: parseFloat(formData.startMileage),
       endMileage: (formData.endMileage && formData.endMileage.trim() !== "") ? parseFloat(formData.endMileage) : null,
-      tripDetails: formData.tripDetails || "",
+      tripDetails: formData.tripDetails, // Now required
       createdAt: serverTimestamp() as Timestamp,
       updatedAt: serverTimestamp() as Timestamp,
     };
@@ -118,7 +118,7 @@ export async function updateTrip(
       endTime: (formData.endTime && formData.endTime.trim() !== "") ? formData.endTime : null,
       startMileage: parseFloat(formData.startMileage),
       endMileage: (formData.endMileage && formData.endMileage.trim() !== "") ? parseFloat(formData.endMileage) : null,
-      tripDetails: formData.tripDetails || "",
+      tripDetails: formData.tripDetails, // Now required
       updatedAt: serverTimestamp() as Timestamp,
     };
 
@@ -134,3 +134,4 @@ export async function updateTrip(
     return { success: false, error: error.message || 'Failed to update trip.' };
   }
 }
+

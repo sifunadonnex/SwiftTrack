@@ -22,7 +22,7 @@ export interface Trip {
   endTime?: string | null;
   startMileage: number;
   endMileage?: number | null;
-  tripDetails?: string;
+  tripDetails: string; // Changed from optional
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -37,5 +37,6 @@ export interface TripFormData {
   endTime?: string | null;
   startMileage: string;
   endMileage?: string | null;
-  tripDetails?: string;
+  tripDetails: string; // Changed from optional
 }
+

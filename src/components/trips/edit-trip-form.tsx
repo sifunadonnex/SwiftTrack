@@ -29,7 +29,7 @@ const editTripFormSchema = z.object({
   endTime: z.string().regex(timeRegex, { message: "Invalid end time format (HH:MM)." }).optional().or(z.literal('')),
   startMileage: z.string().refine(val => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, { message: "Start mileage must be a non-negative number." }),
   endMileage: z.string().refine(val => val === '' || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0), { message: "End mileage must be a non-negative number if provided." }).optional().or(z.literal('')),
-  tripDetails: z.string().optional(),
+  tripDetails: z.string().min(1, { message: "Trip details are required." }), // Changed from optional
 }).refine(data => {
   if (data.endMileage && data.endMileage.trim() !== "" && data.startMileage && data.startMileage.trim() !== "") {
     const start = parseFloat(data.startMileage);
@@ -106,7 +106,7 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
       endTime: trip.endTime || "",
       startMileage: trip.startMileage?.toString() || "0",
       endMileage: trip.endMileage?.toString() || "",
-      tripDetails: trip.tripDetails || "",
+      tripDetails: trip.tripDetails, // Now always a string
     },
   });
 
@@ -121,7 +121,7 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
         endTime: trip.endTime || "",
         startMileage: trip.startMileage?.toString() || "0",
         endMileage: trip.endMileage?.toString() || "",
-        tripDetails: trip.tripDetails || "",
+        tripDetails: trip.tripDetails, // Now always a string
     });
   }, [trip, form]);
 
@@ -134,6 +134,7 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
       startMileage: values.startMileage,
       endMileage: values.endMileage || null,
       endTime: values.endTime || null,
+      // tripDetails is already in values and now required
     };
     await onSave(trip.id, dataToSave);
   }
@@ -182,7 +183,7 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
             name="returnDate"
             render={({ field }) => (
               <FormItem className="flex flex-col">
-                <FormLabel>Return Date (Optional)</FormLabel>
+                <FormLabel>Return Date</FormLabel>
                 <Popover>
                   <PopoverTrigger asChild>
                     <FormControl>
@@ -251,7 +252,7 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
             name="toLocation"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>To Location (Optional)</FormLabel>
+                <FormLabel>To Location</FormLabel>
                 <FormControl>
                   <Input placeholder="e.g., Client Site A" {...field} />
                 </FormControl>
@@ -280,7 +281,7 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
             name="endTime"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>End Time (Optional)</FormLabel>
+                <FormLabel>End Time</FormLabel>
                 <FormControl>
                   <Input type="time" {...field} />
                 </FormControl>
@@ -309,7 +310,7 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
             name="endMileage"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>End Mileage (Optional)</FormLabel>
+                <FormLabel>End Mileage</FormLabel>
                 <FormControl>
                   <Input type="number" placeholder="e.g., 15100" {...field} min="0" step="0.1" />
                 </FormControl>
@@ -347,3 +348,4 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
     </Form>
   );
 }
+
