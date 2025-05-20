@@ -15,12 +15,13 @@ import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import React, { useEffect } from 'react';
 import type { Trip, TripFormData } from "@/lib/types";
-import { Timestamp } from "firebase/firestore"; 
+import { Timestamp } from "firebase/firestore";
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/; // HH:MM format
 
 const editTripFormSchema = z.object({
   tripDate: z.date({ required_error: "Trip date is required." }),
+  returnDate: z.date().optional().nullable(),
   driverName: z.string().min(2, { message: "Driver name must be at least 2 characters." }),
   fromLocation: z.string().min(2, { message: "From location must be at least 2 characters." }),
   toLocation: z.string().optional().or(z.literal('')),
@@ -33,7 +34,7 @@ const editTripFormSchema = z.object({
   if (data.endMileage && data.endMileage.trim() !== "" && data.startMileage && data.startMileage.trim() !== "") {
     const start = parseFloat(data.startMileage);
     const end = parseFloat(data.endMileage);
-    if (isNaN(start) || isNaN(end)) return true; 
+    if (isNaN(start) || isNaN(end)) return true;
     return end >= start;
   }
   return true;
@@ -42,16 +43,27 @@ const editTripFormSchema = z.object({
   path: ["endMileage"],
 }).refine(data => {
     if (data.endTime && data.endTime.trim() !== "" && data.startTime && data.startTime.trim() !== "") {
-        const [startHour, startMinute] = data.startTime.split(':').map(Number);
-        const [endHour, endMinute] = data.endTime.split(':').map(Number);
-        const startDate = new Date(2000, 0, 1, startHour, startMinute);
-        const endDate = new Date(2000, 0, 1, endHour, endMinute);
-        return endDate > startDate;
+        const effectiveReturnDate = data.returnDate || data.tripDate;
+        if (format(data.tripDate, 'yyyy-MM-dd') === format(effectiveReturnDate, 'yyyy-MM-dd')) {
+            const [startHour, startMinute] = data.startTime.split(':').map(Number);
+            const [endHour, endMinute] = data.endTime.split(':').map(Number);
+            const startDate = new Date(2000, 0, 1, startHour, startMinute);
+            const endDate = new Date(2000, 0, 1, endHour, endMinute);
+            return endDate > startDate;
+        }
     }
     return true;
 }, {
-    message: "End time must be after start time, if provided.",
+    message: "End time must be after start time if on the same day.",
     path: ["endTime"],
+}).refine(data => {
+  if (data.returnDate && data.tripDate) { // Ensure tripDate is also defined
+    return data.returnDate >= data.tripDate;
+  }
+  return true;
+}, {
+  message: "Return date cannot be before trip date.",
+  path: ["returnDate"],
 });
 
 type EditTripFormValues = z.infer<typeof editTripFormSchema>;
@@ -64,25 +76,36 @@ interface EditTripFormProps {
 }
 
 export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditTripFormProps) {
-  
-  const getInitialDate = (tripDate: Date | Timestamp | string): Date => {
+
+  const getInitialDate = (tripDate: Date | Timestamp | string | null | undefined): Date => {
+    if (!tripDate) return new Date(); // Default if undefined or null
     if (tripDate instanceof Timestamp) return tripDate.toDate();
-    if (typeof tripDate === 'string') return parseISO(tripDate); 
-    if (tripDate instanceof Date) return tripDate; 
-    return new Date(); 
+    if (typeof tripDate === 'string') return parseISO(tripDate);
+    if (tripDate instanceof Date) return tripDate;
+    return new Date();
   };
+  
+  const getInitialOptionalDate = (dateValue: Date | Timestamp | string | null | undefined): Date | null => {
+    if (!dateValue) return null;
+    if (dateValue instanceof Timestamp) return dateValue.toDate();
+    if (typeof dateValue === 'string') return parseISO(dateValue);
+    if (dateValue instanceof Date) return dateValue;
+    return null;
+  }
+
 
   const form = useForm<EditTripFormValues>({
     resolver: zodResolver(editTripFormSchema),
     defaultValues: {
       tripDate: getInitialDate(trip.tripDate),
+      returnDate: getInitialOptionalDate(trip.returnDate),
       driverName: trip.driverName || "",
       fromLocation: trip.fromLocation || "",
       toLocation: trip.toLocation || "",
       startTime: trip.startTime || "",
-      endTime: trip.endTime || "", 
+      endTime: trip.endTime || "",
       startMileage: trip.startMileage?.toString() || "0",
-      endMileage: trip.endMileage?.toString() || "", 
+      endMileage: trip.endMileage?.toString() || "",
       tripDetails: trip.tripDetails || "",
     },
   });
@@ -90,6 +113,7 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
   useEffect(() => {
     form.reset({
         tripDate: getInitialDate(trip.tripDate),
+        returnDate: getInitialOptionalDate(trip.returnDate),
         driverName: trip.driverName || "",
         fromLocation: trip.fromLocation || "",
         toLocation: trip.toLocation || "",
@@ -105,10 +129,11 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
     if (!trip.id) return;
     const dataToSave: TripFormData = {
       ...values,
+      returnDate: values.returnDate || null,
       toLocation: values.toLocation || null,
       startMileage: values.startMileage,
-      endMileage: values.endMileage || null, 
-      endTime: values.endTime || null, 
+      endMileage: values.endMileage || null,
+      endTime: values.endTime || null,
     };
     await onSave(trip.id, dataToSave);
   }
@@ -152,7 +177,49 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
               </FormItem>
             )}
           />
-          <FormField
+           <FormField
+            control={form.control}
+            name="returnDate"
+            render={({ field }) => (
+              <FormItem className="flex flex-col">
+                <FormLabel>Return Date (Optional)</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full pl-3 text-left font-normal",
+                          !field.value && "text-muted-foreground"
+                        )}
+                      >
+                        {field.value ? format(field.value, "PPP") : <span>Pick a return date</span>}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={field.value}
+                      onSelect={(date) => {
+                        field.onChange(date);
+                      }}
+                      disabled={(date) => {
+                        const tripDate = form.getValues("tripDate");
+                        return date > new Date() || (tripDate && date < tripDate);
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                 <FormDescription>Leave blank if same as trip date.</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+         <FormField
             control={form.control}
             name="driverName"
             render={({ field }) => (
@@ -165,7 +232,6 @@ export default function EditTripForm({ trip, onSave, onCancel, isSaving }: EditT
               </FormItem>
             )}
           />
-        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}

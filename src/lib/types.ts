@@ -14,13 +14,14 @@ export interface Trip {
   id?: string;
   userId: string;
   driverName: string;
-  tripDate: Date | Timestamp; 
+  tripDate: Date | Timestamp;
+  returnDate?: Date | Timestamp | null; // Added returnDate
   fromLocation: string;
   toLocation?: string | null;
-  startTime: string; 
-  endTime?: string | null; 
+  startTime: string;
+  endTime?: string | null;
   startMileage: number;
-  endMileage?: number | null; 
+  endMileage?: number | null;
   tripDetails?: string;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
@@ -28,12 +29,13 @@ export interface Trip {
 
 export interface TripFormData {
   tripDate: Date;
+  returnDate?: Date | null; // Added returnDate
   driverName: string;
   fromLocation: string;
-  toLocation?: string | null; 
+  toLocation?: string | null;
   startTime: string;
-  endTime?: string | null; 
-  startMileage: string; 
-  endMileage?: string | null; 
+  endTime?: string | null;
+  startMileage: string;
+  endMileage?: string | null;
   tripDetails?: string;
 }

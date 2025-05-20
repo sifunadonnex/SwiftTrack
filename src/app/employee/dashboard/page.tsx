@@ -8,8 +8,8 @@ import { db } from '@/config/firebase';
 import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
 import type { Trip, TripFormData } from '@/lib/types';
 import React, { useEffect, useState, useCallback } from 'react';
-import { format } from 'date-fns';
-import { Loader2, Pencil, MapPin, Clock, Gauge } from 'lucide-react';
+import { format, differenceInMilliseconds } from 'date-fns';
+import { Loader2, Pencil, MapPin, Clock, Gauge, CalendarDays } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -43,6 +43,7 @@ export default function EmployeeDashboardPage() {
             id: doc.id,
             ...data,
             tripDate: data.tripDate instanceof Timestamp ? data.tripDate.toDate() : new Date(data.tripDate),
+            returnDate: data.returnDate ? (data.returnDate instanceof Timestamp ? data.returnDate.toDate() : new Date(data.returnDate)) : null,
             fromLocation: data.fromLocation || "N/A",
             toLocation: data.toLocation || "N/A",
           } as Trip;
@@ -61,21 +62,28 @@ export default function EmployeeDashboardPage() {
     fetchTrips();
   }, [fetchTrips]);
 
-  const calculateDuration = (startTime?: string | null, endTime?: string | null, tripDate?: Date | Timestamp | null): string => {
+  const calculateDuration = (
+    startTime?: string | null,
+    endTime?: string | null,
+    tripDate?: Date | Timestamp | null,
+    returnDate?: Date | Timestamp | null
+  ): string => {
     if (!startTime || !endTime || !tripDate) return "N/A";
 
-    const date = tripDate instanceof Timestamp ? tripDate.toDate() : new Date(tripDate);
-    const startDateTime = new Date(date);
+    const tDate = tripDate instanceof Timestamp ? tripDate.toDate() : new Date(tripDate);
+    const rDate = returnDate ? (returnDate instanceof Timestamp ? returnDate.toDate() : new Date(returnDate)) : tDate;
+
+    const startDateTime = new Date(tDate);
     const [startHours, startMinutes] = startTime.split(':').map(Number);
     startDateTime.setHours(startHours, startMinutes, 0, 0);
 
-    const endDateTime = new Date(date);
+    const endDateTime = new Date(rDate);
     const [endHours, endMinutes] = endTime.split(':').map(Number);
     endDateTime.setHours(endHours, endMinutes, 0, 0);
 
-    if (endDateTime <= startDateTime) return "N/A"; 
+    if (endDateTime <= startDateTime) return "N/A";
 
-    let diffMs = endDateTime.getTime() - startDateTime.getTime();
+    let diffMs = differenceInMilliseconds(endDateTime, startDateTime);
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     diffMs -= hours * (1000 * 60 * 60);
     const minutes = Math.floor(diffMs / (1000 * 60));
@@ -158,14 +166,19 @@ export default function EmployeeDashboardPage() {
               const status = getTripStatus(trip);
               const isPending = status.text === "Pending Completion";
               const distance = trip.endMileage != null && trip.startMileage != null ? (trip.endMileage - trip.startMileage) : null;
+              const effectiveReturnDate = trip.returnDate || trip.tripDate;
 
               return (
                 <Card key={trip.id} className="flex flex-col shadow-md hover:shadow-lg transition-shadow duration-200">
                   <CardHeader>
                     <div className="flex justify-between items-start gap-2">
                       <div>
-                        <CardTitle className="text-xl">
-                          {format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : trip.tripDate, 'MMM dd, yyyy')}
+                        <CardTitle className="text-xl flex items-center">
+                           <CalendarDays className="mr-2 h-5 w-5 text-primary" />
+                           {format(trip.tripDate instanceof Timestamp ? trip.tripDate.toDate() : trip.tripDate, 'MMM dd, yyyy')}
+                           {effectiveReturnDate && format(effectiveReturnDate, 'yyyy-MM-dd') !== format(trip.tripDate, 'yyyy-MM-dd') && (
+                            <span className="text-sm text-muted-foreground ml-2">(Return: {format(effectiveReturnDate, 'MMM dd')})</span>
+                           )}
                         </CardTitle>
                         <CardDescription>Driver: {trip.driverName}</CardDescription>
                       </div>
@@ -182,7 +195,7 @@ export default function EmployeeDashboardPage() {
                         </p>
                       </div>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm border-t border-b py-3">
                       <div className="flex items-center space-x-2">
                         <Clock className="h-4 w-4 text-muted-foreground" />
@@ -213,11 +226,11 @@ export default function EmployeeDashboardPage() {
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-x-4 text-sm">
                          <div>
                             <h4 className="font-medium">Duration</h4>
-                            <p className="text-muted-foreground">{calculateDuration(trip.startTime, trip.endTime, trip.tripDate)}</p>
+                            <p className="text-muted-foreground">{calculateDuration(trip.startTime, trip.endTime, trip.tripDate, trip.returnDate)}</p>
                         </div>
                         <div>
                             <h4 className="font-medium">Distance</h4>

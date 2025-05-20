@@ -24,6 +24,7 @@ const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/; // HH:MM format
 
 const tripFormSchema = z.object({
   tripDate: z.date({ required_error: "Trip date is required." }),
+  returnDate: z.date().optional().nullable(),
   driverName: z.string().min(2, { message: "Driver name must be at least 2 characters." }),
   fromLocation: z.string().min(2, { message: "From location must be at least 2 characters." }),
   toLocation: z.string().optional().or(z.literal('')),
@@ -45,16 +46,28 @@ const tripFormSchema = z.object({
   path: ["endMileage"],
 }).refine(data => {
     if (data.endTime && data.endTime.trim() !== "" && data.startTime && data.startTime.trim() !== "") {
-        const [startHour, startMinute] = data.startTime.split(':').map(Number);
-        const [endHour, endMinute] = data.endTime.split(':').map(Number);
-        const startDate = new Date(2000, 0, 1, startHour, startMinute);
-        const endDate = new Date(2000, 0, 1, endHour, endMinute);
-        return endDate > startDate;
+        // Only validate time if tripDate and returnDate (or tripDate if returnDate is null) are the same
+        const effectiveReturnDate = data.returnDate || data.tripDate;
+        if (format(data.tripDate, 'yyyy-MM-dd') === format(effectiveReturnDate, 'yyyy-MM-dd')) {
+            const [startHour, startMinute] = data.startTime.split(':').map(Number);
+            const [endHour, endMinute] = data.endTime.split(':').map(Number);
+            const startDate = new Date(2000, 0, 1, startHour, startMinute);
+            const endDate = new Date(2000, 0, 1, endHour, endMinute);
+            return endDate > startDate;
+        }
     }
     return true;
 }, {
-    message: "End time must be after start time, if provided.",
+    message: "End time must be after start time if on the same day.",
     path: ["endTime"],
+}).refine(data => {
+  if (data.returnDate) {
+    return data.returnDate >= data.tripDate;
+  }
+  return true;
+}, {
+  message: "Return date cannot be before trip date.",
+  path: ["returnDate"],
 });
 
 
@@ -67,6 +80,7 @@ export default function TripForm() {
     resolver: zodResolver(tripFormSchema),
     defaultValues: {
       tripDate: new Date(),
+      returnDate: null,
       driverName: user?.displayName || "",
       fromLocation: "",
       toLocation: "",
@@ -85,23 +99,24 @@ export default function TripForm() {
   }, [user, form]);
 
   async function onSubmit(values: z.infer<typeof tripFormSchema>) {
-    if (!user || !user.uid) { 
+    if (!user || !user.uid) {
       toast({ title: "Error", description: "You must be logged in to submit a trip.", variant: "destructive" });
-      setIsSubmitting(false); 
+      setIsSubmitting(false);
       return;
     }
     setIsSubmitting(true);
-    
+
     const tripData: TripFormData = {
       ...values,
+      returnDate: values.returnDate || null,
       toLocation: values.toLocation || null,
-      endTime: values.endTime || null, 
-      startMileage: values.startMileage, 
-      endMileage: values.endMileage || null,   
+      endTime: values.endTime || null,
+      startMileage: values.startMileage,
+      endMileage: values.endMileage || null,
     };
 
     try {
-      const result = await addTrip(user.uid, tripData); 
+      const result = await addTrip(user.uid, tripData);
       if (result.success && result.tripId) {
         toast({
           title: "Trip Submitted!",
@@ -109,6 +124,7 @@ export default function TripForm() {
         });
         form.reset({
             tripDate: new Date(),
+            returnDate: null,
             driverName: user?.displayName || "",
             fromLocation: "",
             toLocation: "",
@@ -175,6 +191,47 @@ export default function TripForm() {
 
           <FormField
             control={form.control}
+            name="returnDate"
+            render={({ field }) => (
+              <FormItem className="flex flex-col">
+                <FormLabel>Return Date (Optional)</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full pl-3 text-left font-normal",
+                          !field.value && "text-muted-foreground"
+                        )}
+                      >
+                        {field.value ? format(field.value, "PPP") : <span>Pick a return date</span>}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={field.value}
+                      onSelect={field.onChange}
+                      disabled={(date) => {
+                        const tripDate = form.getValues("tripDate");
+                        return date > new Date() || (tripDate && date < tripDate);
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <FormDescription>Leave blank if same as trip date.</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+            control={form.control}
             name="driverName"
             render={({ field }) => (
               <FormItem>
@@ -186,7 +243,7 @@ export default function TripForm() {
               </FormItem>
             )}
           />
-        </div>
+
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormField
@@ -277,7 +334,7 @@ export default function TripForm() {
             )}
           />
         </div>
-        
+
         <FormField
           control={form.control}
           name="tripDetails"
@@ -298,7 +355,7 @@ export default function TripForm() {
             </FormItem>
           )}
         />
-        
+
         <Button type="submit" className="w-full md:w-auto" disabled={isSubmitting}>
           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Submit Trip
