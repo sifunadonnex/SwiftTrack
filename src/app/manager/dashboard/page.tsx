@@ -18,7 +18,7 @@ import { db } from '@/config/firebase';
 import { collection, query, getDocs, orderBy, where, Timestamp } from 'firebase/firestore';
 import { format, parseISO, startOfDay, endOfDay, isWithinInterval, differenceInMilliseconds } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
-import { CalendarIcon, Loader2, SearchIcon, Brain, Pencil, AlertCircle, Printer, MapPin, Clock, Gauge, Route, FileDown, CalendarDays } from 'lucide-react';
+import { CalendarIcon, Loader2, SearchIcon, Brain, Pencil, AlertCircle, Printer, MapPin, Clock, Gauge, Route, FileDown, CalendarDays, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter} from "@/components/ui/dialog";
@@ -323,6 +323,10 @@ export default function ManagerDashboardPage() {
     return { totalTrips, totalDistance, averageDistance };
   }, [filteredTrips]);
 
+  const pendingFilteredTripsCount = useMemo(() => {
+    return filteredTrips.filter(trip => getTripStatusBadge(trip).text === "Pending").length;
+  }, [filteredTrips]);
+
 
   return (
     <AppLayout requiredRole="manager">
@@ -363,6 +367,16 @@ export default function ManagerDashboardPage() {
               )}
             </CardContent>
           </Card>
+        )}
+
+        {!isLoading && !error && pendingFilteredTripsCount > 0 && (
+          <Alert className="no-print">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Pending Trips Alert</AlertTitle>
+            <AlertDescription>
+              There {pendingFilteredTripsCount === 1 ? 'is' : 'are'} {pendingFilteredTripsCount} trip{pendingFilteredTripsCount > 1 ? 's' : ''} in the current view that {pendingFilteredTripsCount === 1 ? 'is' : 'are'} pending completion.
+            </AlertDescription>
+          </Alert>
         )}
 
         <div className="print-only">

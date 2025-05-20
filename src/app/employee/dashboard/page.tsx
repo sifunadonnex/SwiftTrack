@@ -7,9 +7,9 @@ import { useAuthClient } from '@/hooks/use-auth-client';
 import { db } from '@/config/firebase';
 import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
 import type { Trip, TripFormData } from '@/lib/types';
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { format, differenceInMilliseconds } from 'date-fns';
-import { Loader2, Pencil, MapPin, Clock, Gauge, CalendarDays, Route } from 'lucide-react';
+import { Loader2, Pencil, MapPin, Clock, Gauge, CalendarDays, Route, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -101,6 +101,10 @@ export default function EmployeeDashboardPage() {
     return { text: "Pending Completion", variant: "secondary" };
   };
 
+  const pendingTripsCount = useMemo(() => {
+    return trips.filter(trip => getTripStatus(trip).text === "Pending Completion").length;
+  }, [trips]);
+
   const handleEditTrip = (trip: Trip) => {
     setCurrentTripToEdit(trip);
     setIsEditModalOpen(true);
@@ -146,6 +150,16 @@ export default function EmployeeDashboardPage() {
           <Alert variant="destructive">
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {!isLoading && !error && pendingTripsCount > 0 && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Action Required</AlertTitle>
+            <AlertDescription>
+              You have {pendingTripsCount} trip{pendingTripsCount > 1 ? 's' : ''} pending completion. Please update the end time and mileage.
+            </AlertDescription>
           </Alert>
         )}
 
